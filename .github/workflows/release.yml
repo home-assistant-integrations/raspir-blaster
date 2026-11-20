@@ -1,0 +1,189 @@
+#
+#  release.yml
+#  raspir-blaster
+#
+#  Created by Thomas Bonk on 2026-11-20.
+#  Copyright 2026 Thomas Bonk <thomas@meandmymac.de>
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+# Manual release from main (see openspec/specs/release-process):
+#   1. prepare: compute the version yyyy.mm.rm, create rel-<version> with a
+#      VERSION commit
+#   2. build:   build and test on rel-<version>, package the assets
+#   3. publish: GitHub release <version> with the zips and SHA256SUMS.txt
+#   4. cleanup: on failure, remove the release branch (and tag/release)
+
+name: Release
+
+on:
+  workflow_dispatch:
+
+# One release at a time, so two runs never compute the same version.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    name: Create release branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      sha: ${{ steps.branch.outputs.sha }}
+    steps:
+      - name: Releases are only made from main
+        if: github.ref != 'refs/heads/main'
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          echo "::error title=Wrong branch::Releases are only made from main (started on $REF)"
+          exit 1
+
+      - name: Check out main
+        uses: actions/checkout@v4
+
+      - name: Compute version
+        id: version
+        run: |
+          version="$(git ls-remote origin 'refs/heads/rel-*' 'refs/tags/*' | scripts/next-version.sh)"
+          if [[ ! "$version" =~ ^[0-9]{4}\.[0-9]{2}\.[0-9]+$ ]]; then
+            echo "::error::unexpected version '$version'"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Release version: $version" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create release branch
+        id: branch
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "rel-$VERSION"
+          printf '%s\n' "$VERSION" > VERSION
+          git add VERSION
+          git commit -m "chore(release): $VERSION"
+          git push origin "rel-$VERSION"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build release
+    needs: prepare
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - name: Check out release branch
+        uses: actions/checkout@v4
+        with:
+          ref: rel-${{ needs.prepare.outputs.version }}
+
+      - name: Check VERSION file
+        run: |
+          if [[ "$(cat VERSION)" != "$RELEASE_VERSION" ]]; then
+            echo "::error::VERSION file does not contain $RELEASE_VERSION"
+            exit 1
+          fi
+
+      - name: Build and test
+        uses: ./.github/actions/build-and-test
+
+      - name: Package release assets
+        run: scripts/package-release.sh "$RELEASE_VERSION"
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ needs.prepare.outputs.version }}
+          path: build/release/
+          retention-days: 1
+          if-no-files-found: error
+
+  publish:
+    name: Publish release
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out release branch
+        uses: actions/checkout@v4
+        with:
+          ref: rel-${{ needs.prepare.outputs.version }}
+
+      - name: Download release assets
+        uses: actions/download-artifact@v4
+        with:
+          name: release-${{ needs.prepare.outputs.version }}
+          path: release
+
+      - name: Create GitHub release
+        run: |
+          # Header without its licence comment, with the version filled in.
+          sed -e '/^<!--/,/^-->/d' -e "s/<version>/$RELEASE_VERSION/g" \
+              .github/release-notes-header.md > "$RUNNER_TEMP/notes.md"
+          gh release create "$RELEASE_VERSION" \
+            release/raspir-blaster-"$RELEASE_VERSION"-sdcard.zip \
+            release/raspir-blaster-"$RELEASE_VERSION"-cm4-emmc.zip \
+            release/SHA256SUMS.txt \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "rel-$RELEASE_VERSION" \
+            --title "raspir-blaster $RELEASE_VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --generate-notes
+          echo "Published release $RELEASE_VERSION" >> "$GITHUB_STEP_SUMMARY"
+
+  cleanup:
+    name: Clean up failed release
+    needs: [prepare, build, publish]
+    if: (failure() || cancelled()) && needs.prepare.outputs.version != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+      BRANCH_SHA: ${{ needs.prepare.outputs.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Delete release, tag and branch
+        run: |
+          repo="$GITHUB_REPOSITORY"
+
+          # Only delete refs that point to this run's commit, never another run's.
+          ref_sha() {
+            gh api "repos/$repo/git/ref/$1" --jq '.object.sha' 2>/dev/null || true
+          }
+
+          gh release delete "$RELEASE_VERSION" --repo "$repo" --yes 2>/dev/null \
+            && echo "deleted release $RELEASE_VERSION" || true
+
+          if [[ -n "$BRANCH_SHA" && "$(ref_sha "tags/$RELEASE_VERSION")" == "$BRANCH_SHA" ]]; then
+            gh api -X DELETE "repos/$repo/git/refs/tags/$RELEASE_VERSION"
+            echo "deleted tag $RELEASE_VERSION"
+          fi
+
+          if [[ -n "$BRANCH_SHA" && "$(ref_sha "heads/rel-$RELEASE_VERSION")" == "$BRANCH_SHA" ]]; then
+            gh api -X DELETE "repos/$repo/git/refs/heads/rel-$RELEASE_VERSION"
+            echo "deleted branch rel-$RELEASE_VERSION"
+          fi
+
+          echo "Release $RELEASE_VERSION failed; release branch removed" >> "$GITHUB_STEP_SUMMARY"

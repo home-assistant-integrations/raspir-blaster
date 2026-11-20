@@ -41,9 +41,13 @@ TEST_OBJS := $(patsubst tests/%.cpp,$(BUILD_DIR)/%.o,$(TEST_SRCS))
 RUNNER := $(BUILD_DIR)/run_tests
 
 # The runner is always relinked so that removed test files drop out of it.
-.PHONY: run FORCE
-run: $(RUNNER)
+.PHONY: run FORCE scripts
+run: $(RUNNER) scripts
 	@$(RUNNER)
+
+# Tests of the release helper scripts.
+scripts:
+	@for t in tests/scripts/test-*.sh; do bash "$$t" || exit 1; done
 
 $(RUNNER): $(CORE_OBJS) $(TEST_OBJS) FORCE
 	@echo "  LD    $@"

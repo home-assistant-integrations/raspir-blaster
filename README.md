@@ -1,5 +1,7 @@
 # `raspir-blaster`
 
+[![CI](https://github.com/home-assistant-integrations/raspir-blaster/actions/workflows/ci.yml/badge.svg)](https://github.com/home-assistant-integrations/raspir-blaster/actions/workflows/ci.yml)
+
 `raspir-blaster` is a Raspberry Pi based IR blaster that integrates
 with [Home Assistant](https://www.home-assistant.io). It runs as bare-metal
 firmware built on [Circle](https://github.com/rsta2/circle), with no Linux,
@@ -11,6 +13,10 @@ and talks to Home Assistant over MQTT:
 
 The firmware does not decode IR protocols. It records and replays raw timings,
 so NEC, Sony, RC5/RC6 and long air-conditioner frames all work the same way.
+
+Ready-to-use SD card files are attached to every
+[release](https://github.com/home-assistant-integrations/raspir-blaster/releases);
+see [Releases](#releases). To build the firmware yourself, see [Building](#building).
 
 ## Supported boards
 
@@ -67,6 +73,7 @@ command line tools (for `clang++`, used by the host tests).
 make                       # first run: downloads toolchains + Circle into toolchain/,
                            # then builds the images of all targets
 make TARGETS="rpi0w rpi4"  # builds only these targets (faster during development)
+make VERSION=2026.11.0     # sets the firmware version (default: VERSION file, else "dev")
 make sdcard                # assembles build/sdcard/ and build/cm4-emmc/
 make test                  # runs the host unit tests for the hardware-independent code
 make clean                 # removes build outputs, keeps toolchain/
@@ -123,6 +130,50 @@ A CM4 with eMMC boots from its eMMC, so it uses `build/cm4-emmc/` instead:
 If the configuration is missing or invalid, the ACT LED blinks slowly
 (1 s on, 1 s off) and the serial log tells you what is wrong. A fast blink
 means a hardware or driver error; the device then reboots after 10 s.
+
+## Releases
+
+Releases are published on the
+[Releases page](https://github.com/home-assistant-integrations/raspir-blaster/releases).
+Each release has:
+
+| File | For |
+| --- | --- |
+| `raspir-blaster-<version>-sdcard.zip` | Zero W, Zero 2 W, Pi 3, Pi 4 B, CM4 Lite: extract onto a FAT32 SD card |
+| `raspir-blaster-<version>-cm4-emmc.zip` | CM4 with eMMC: copy onto the eMMC (see above) |
+| `SHA256SUMS.txt` | checksums; verify with `shasum -a 256 -c SHA256SUMS.txt` |
+
+**Version scheme:** `yyyy.mm.rm`, with the year and two-digit month of the
+release (UTC) and a release counter `rm` that starts at `0` every month, e.g.
+`2026.11.0`, `2026.11.1`, `2026.12.0`. The firmware reports its version in the
+serial boot log and as the firmware version of the Home Assistant device.
+Builds outside a release report `dev`.
+
+### Making a release
+
+Maintainers start a release under **Actions → Release → Run workflow** on
+`main`. The workflow:
+
+1. computes the next version and creates the branch `rel-<version>` with a
+   `VERSION` file,
+2. builds and tests the firmware on that branch,
+3. publishes the GitHub release `<version>` with the files above.
+
+If a step fails, the workflow deletes the release branch again, so the version
+number is used by the next run. Only one release runs at a time.
+
+Repository settings this needs: GitHub Actions enabled, workflow permissions
+allowing `contents: write`, and no branch protection or ruleset on `rel-*`
+branches. If a cleanup ever fails, delete a stray branch with
+`git push origin --delete rel-<version>`.
+
+## Continuous integration
+
+Every push to any branch except `rel-*` (including `main` after a pull request
+is merged) runs the [CI workflow](.github/workflows/ci.yml) on an Apple
+Silicon macOS runner: it builds all targets, fails on compiler warnings, runs
+`make test` and `make sdcard`. The kernel images of each successful run can
+be downloaded from the run's page for 7 days.
 
 ## Configuration (`raspir-blaster.conf`)
 

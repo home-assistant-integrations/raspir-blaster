@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Bare-metal IR blaster and receiver for a Raspberry Pi Zero W, built on the [Circle](https://github.com/rsta2/circle) C++ framework (no Linux). It bridges Home Assistant and infrared over MQTT: payloads from HA are transmitted as IR, and IR from physical remotes is published back to HA.
 
-Technical details are described in the [technical design document](docs/dev/raspir-blaster-home-assistant.md). The authoritative requirements are in `openspec/specs/`; the design decisions behind them are in the archived change `openspec/changes/archive/2026-11-20-add-ir-blaster-firmware/design.md`.
+Technical details are described in the [technical design document](docs/dev/raspir-blaster-home-assistant.md). The authoritative requirements are in `openspec/specs/`; the design decisions behind them are in the `design.md` files of the archived changes in `openspec/changes/archive/` (`add-ir-blaster-firmware`: firmware architecture; `add-multi-board-builds`: build targets and boot media).
 
 ## Commands
 
@@ -18,7 +18,19 @@ make sdcard             # build/sdcard/ (universal card) + build/cm4-emmc/; need
 make firmware-checksums # refresh scripts/firmware-files.txt after bumping a pinned firmware commit
 make clean / distclean  # distclean also removes toolchain/
 make WATCHDOG_TEST=1    # test images whose main loop hangs after 30 s (watchdog must reboot it)
+make VERSION=2026.11.0  # firmware version; default: VERSION file (release branches only), else "dev"
+scripts/package-release.sh <version>   # release zips + SHA256SUMS.txt after `make VERSION=<version> sdcard`
 ```
+
+`make test` also runs the shell tests in `tests/scripts/` (version calculation).
+
+## CI and releases (`.github/`)
+
+- `workflows/ci.yml`: every push except `rel-*` branches, on `macos-15` (arm64). `actions/build-and-test` (composite, shared with the release) does `make` (fails on compiler warnings), `make test`, `make sdcard`; it caches `toolchain/` except the extracted toolchains, keyed on `versions.env`, `bootstrap.sh` and `firmware-files.txt`.
+- `workflows/release.yml`: manual from `main` only; `scripts/next-version.sh` computes `yyyy.mm.rm` from the `rel-*` branches/tags. It creates `rel-<version>` with a `VERSION` commit, builds there, publishes a GitHub release `<version>`, and deletes the branch/tag/release on failure.
+- Never commit a `VERSION` file on `main`: it would set the version of every build. The `VERSION` environment variable is ignored on purpose.
+- Pass `${{ }}` values to `run:` only via `env:`.
+- The firmware version reaches the code through `build/generated/firmware_version.h` (rewritten only on change; the top-level Makefile then deletes dependent objects because macOS's make 3.81 has one-second timestamp resolution). `src/core/version.h` falls back to `"dev"` via `__has_include`.
 
 There is no single-test filter: `make test` runs every `TEST (...)` in `tests/*.cpp` (fast, < 1 s). New test files are picked up by wildcard.
 
