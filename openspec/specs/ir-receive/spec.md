@@ -1,7 +1,7 @@
 # ir-receive Specification
 
 ## Purpose
-TBD - created by archiving change add-ir-blaster-firmware. Update Purpose after archive.
+Capturing IR frames from the receiver on GPIO23 as raw timings, segmenting them by gap, and publishing them to MQTT.
 ## Requirements
 ### Requirement: Edge capture on GPIO23
 The firmware SHALL configure GPIO23 (header pin 16), connected to the TSOP38238 output, as an input with pull-up. It SHALL record the time of every rising and falling edge with 1 µs resolution using an interrupt. The first falling edge of a frame marks the start of the first mark (the TSOP output is active-low).

@@ -1,7 +1,7 @@
 # board-support Specification
 
 ## Purpose
-TBD - created by archiving change add-multi-board-builds. Update Purpose after archive.
+Which Raspberry Pi boards the firmware supports, the build target and kernel image for each, and the SoC differences (clocks, peripherals, eMMC) the firmware must handle.
 ## Requirements
 ### Requirement: Supported boards and images
 The firmware SHALL support the following boards, each through the listed build target and kernel image:

@@ -1,7 +1,7 @@
 # ha-discovery Specification
 
 ## Purpose
-TBD - created by archiving change add-ir-blaster-firmware. Update Purpose after archive.
+The Home Assistant MQTT discovery messages the device publishes so that it and its IR receiver sensor appear in Home Assistant automatically.
 ## Requirements
 ### Requirement: Discovery of the receiver sensor
 After every successful MQTT connection, the firmware SHALL publish, retained, a Home Assistant MQTT Discovery configuration for a sensor to `homeassistant/sensor/<device_id>/received/config`. The configuration SHALL contain:

@@ -1,7 +1,7 @@
 # device-config Specification
 
 ## Purpose
-TBD - created by archiving change add-ir-blaster-firmware. Update Purpose after archive.
+The device configuration file on the boot partition: its format, required and optional keys, validation, and the degraded state when it is missing or invalid.
 ## Requirements
 ### Requirement: Configuration file on the SD card
 The firmware SHALL read its settings at boot from the file `raspir-blaster.conf` in the root of the SD card's FAT32 partition. The format SHALL be one `key=value` pair per line. Leading and trailing whitespace around keys and values SHALL be ignored, lines starting with `#` and empty lines SHALL be ignored, and lines may end with LF or CRLF.

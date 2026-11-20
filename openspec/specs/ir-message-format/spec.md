@@ -1,7 +1,7 @@
 # ir-message-format Specification
 
 ## Purpose
-TBD - created by archiving change add-ir-blaster-firmware. Update Purpose after archive.
+The JSON payload format for raw IR frames exchanged over MQTT (carrier frequency and mark/space timings) and the limits every message is validated against.
 ## Requirements
 ### Requirement: Raw IR frame message schema
 An IR frame SHALL be represented as a UTF-8 JSON object with:

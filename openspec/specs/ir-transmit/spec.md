@@ -1,7 +1,7 @@
 # ir-transmit Specification
 
 ## Purpose
-TBD - created by archiving change add-ir-blaster-firmware. Update Purpose after archive.
+Transmitting raw IR frames received over MQTT on GPIO18 with a PWM carrier, including queuing and timing accuracy.
 ## Requirements
 ### Requirement: Transmit valid messages from MQTT
 For every valid IR message received on `<topic_base>/send`, the firmware SHALL transmit the frame once via the IR LED connected to GPIO18 (header pin 12).

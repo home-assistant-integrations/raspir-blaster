@@ -33,5 +33,7 @@
 
 - [x] 6.1 README: CI badge, "Releases" section (version scheme, downloading, checksum verification, starting a release, repository settings, removing a stray `rel-*` branch)
 - [x] 6.2 `CLAUDE.md`: workflows, composite action, version source (`VERSION` file / `make VERSION=`), never commit `VERSION` on `main`
-- [ ] 6.3 Push the branch and confirm that the CI workflow runs green on GitHub (cold cache), then rerun to confirm the cached run
-- [ ] 6.4 After merging to `main`: run the first release and check the branch, tag, assets and `SHA256SUMS.txt`; record the result in this task
+- [x] 6.3 Push the branch and confirm that the CI workflow runs green on GitHub (cold cache), then rerun to confirm the cached run
+  - Result (2026-11-20): CI green on `github-actions` (run 44756602726, 3m13s) and on `main` after PR #2 (run 44756681604, 3m06s), both cold ("Cache not found", then "Cache saved"). Cached run confirmed by the Release workflow, which uses the same composite action and key: "Cache hit for: toolchain-macos-arm64-e15ca5be…" (run 44757290987). Note: GitHub caches are branch-scoped; a feature branch's first run reads `main`'s cache, but `main` never reads a feature branch's.
+- [x] 6.4 After merging to `main`: run the first release and check the branch, tag, assets and `SHA256SUMS.txt`; record the result in this task
+  - Result (2026-11-20): Release run 44757290987 succeeded in 1m23s. Branch `rel-2026.11.0` = `0714afd chore(release): 2026.11.0` on top of `8a5f7af`, `VERSION` = `2026.11.0`; tag `2026.11.0` points to the same commit; release "raspir-blaster 2026.11.0" marked Latest with `raspir-blaster-2026.11.0-sdcard.zip`, `raspir-blaster-2026.11.0-cm4-emmc.zip` and `SHA256SUMS.txt`. Downloaded assets pass `shasum -a 256 -c`; the SD card zip contains `config.txt`, `kernel.img`, `kernel8.img` and `kernel8-rpi4.img`.
