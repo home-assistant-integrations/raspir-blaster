@@ -3,6 +3,8 @@
 toolchain/
 build/
 *.log
+*.lock
+*.bak
 
 # Created by https://www.toptal.com/developers/gitignore/api/macos,linux,windows,visualstudiocode,git,c,c++
 # Edit at https://www.toptal.com/developers/gitignore?templates=macos,linux,windows,visualstudiocode,git,c,c++
