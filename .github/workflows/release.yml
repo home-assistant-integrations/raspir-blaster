@@ -19,10 +19,12 @@
 #
 
 # Manual release from main (see openspec/specs/release-process):
-#   1. prepare: compute the version yyyy.mm.rm, create rel-<version> with a
-#      VERSION commit
+#   1. prepare: compute the version yyyy.mm.rm, move the [Unreleased] entries
+#      of CHANGELOG.md into a release section, create rel-<version> with a
+#      commit of VERSION and CHANGELOG.md (main is never written)
 #   2. build:   build and test on rel-<version>, package the assets
-#   3. publish: GitHub release <version> with the zips and SHA256SUMS.txt
+#   3. publish: GitHub release <version> with the zips and SHA256SUMS.txt;
+#      notes = download header + changelog section + generated notes
 #   4. cleanup: on failure, remove the release branch (and tag/release)
 
 name: Release
@@ -69,6 +71,32 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Release version: $version" >> "$GITHUB_STEP_SUMMARY"
 
+          # Previous release: highest yyyy.mm.rm tag (empty before the first).
+          previous="$(git ls-remote --tags origin \
+            | awk '{ sub("^refs/tags/", "", $2); print $2 }' \
+            | { grep -E '^[0-9]{4}\.[0-9]{2}\.(0|[1-9][0-9]*)$' || true; } \
+            | sort -t. -k1,1n -k2,2n -k3,3n | tail -n 1)"
+          echo "previous=$previous" >> "$GITHUB_OUTPUT"
+          echo "Previous release: ${previous:-none}" >> "$GITHUB_STEP_SUMMARY"
+
+      # Runs the script's tests with this runner's awk (mawk), which local
+      # "make test" on macOS does not cover.
+      - name: Test changelog script
+        run: bash tests/scripts/test-changelog.sh
+
+      # Fails (before any branch exists) if [Unreleased] is empty or the
+      # previous release's CHANGELOG.md was not copied back to main.
+      - name: Update changelog
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          PREVIOUS: ${{ steps.version.outputs.previous }}
+        run: |
+          if ! scripts/changelog.sh release "$VERSION" "$(date -u +%F)" "$PREVIOUS"; then
+            echo "::error title=CHANGELOG.md::See the message above. Add entries under [Unreleased], or copy CHANGELOG.md from rel-$PREVIOUS to main (git checkout rel-$PREVIOUS -- CHANGELOG.md) in a pull request."
+            exit 1
+          fi
+          scripts/changelog.sh section "$VERSION" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Create release branch
         id: branch
         env:
@@ -78,7 +106,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "rel-$VERSION"
           printf '%s\n' "$VERSION" > VERSION
-          git add VERSION
+          git add VERSION CHANGELOG.md
           git commit -m "chore(release): $VERSION"
           git push origin "rel-$VERSION"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -139,9 +167,15 @@ jobs:
 
       - name: Create GitHub release
         run: |
-          # Header without its licence comment, with the version filled in.
-          sed -e '/^<!--/,/^-->/d' -e "s/<version>/$RELEASE_VERSION/g" \
-              .github/release-notes-header.md > "$RUNNER_TEMP/notes.md"
+          # Header without its licence comment, with the version filled in,
+          # then the version's CHANGELOG.md section; gh appends the
+          # generated notes.
+          {
+            sed -e '/^<!--/,/^-->/d' -e "s/<version>/$RELEASE_VERSION/g" \
+                .github/release-notes-header.md
+            printf "\n## What's new in %s\n\n" "$RELEASE_VERSION"
+            scripts/changelog.sh section "$RELEASE_VERSION"
+          } > "$RUNNER_TEMP/notes.md"
           gh release create "$RELEASE_VERSION" \
             release/raspir-blaster-"$RELEASE_VERSION"-sdcard.zip \
             release/raspir-blaster-"$RELEASE_VERSION"-cm4-emmc.zip \
