@@ -1,0 +1,20 @@
+schema: spec-driven
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+# Example:
+context: |
+  Tech stack: Raspberry Pi Zero W (SoC BCM2835, ARMv6, RASPPI=1, AArch32), C, C++, Circle, Bare Metal, Home Assistant, MQTT
+  We use conventional commits
+  Domain: IR Blaster
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+rules:
+  proposal:
+    - Keep proposals under 1000 words
+    - Always include a "Non-goals" section
+  tasks:
+    - Break tasks into chunks of max 15 minutes
