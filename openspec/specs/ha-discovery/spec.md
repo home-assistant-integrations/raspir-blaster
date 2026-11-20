@@ -22,11 +22,15 @@ After every successful MQTT connection, the firmware SHALL publish, retained, a 
 - **THEN** the sensor reappears from the retained discovery message without action by the device
 
 ### Requirement: Device metadata
-Every discovery configuration SHALL include a `device` object with `identifiers` `["<device_id>"]`, `name` `raspir-blaster (<device_id>)`, `model` `Raspberry Pi Zero W (BCM2835, Circle bare-metal)`, `manufacturer` `DIY` and `sw_version` set to the firmware version.
+Every discovery configuration SHALL include a `device` object with `identifiers` `["<device_id>"]`, `name` `raspir-blaster (<device_id>)`, `model` `<board name> (Circle bare-metal)`, `manufacturer` `DIY` and `sw_version` set to the firmware version. `<board name>` is the board model detected at runtime (e.g. `Raspberry Pi Zero W`, `Raspberry Pi 4 Model B`, `Compute Module 4`).
 
 #### Scenario: Device grouping
 - **WHEN** Home Assistant processes the discovery configuration
 - **THEN** the sensor is grouped under one device whose model and firmware version match the running firmware
+
+#### Scenario: Model reflects the board
+- **WHEN** the firmware runs on a Raspberry Pi 3 Model B+
+- **THEN** the discovery configuration contains `"model":"Raspberry Pi 3 Model B+ (Circle bare-metal)"`
 
 ### Requirement: Availability
 The device SHALL be reported as available while connected and as unavailable otherwise, using the retained `online` payload and the `offline` Last Will on `<topic_base>/status`. These are the default availability payloads, so the discovery configuration does not need `payload_available` or `payload_not_available`.

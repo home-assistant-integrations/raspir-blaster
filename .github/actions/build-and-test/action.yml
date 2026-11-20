@@ -1,0 +1,64 @@
+#
+#  action.yml
+#  raspir-blaster
+#
+#  Created by Thomas Bonk on 2026-11-20.
+#  Copyright 2026 Thomas Bonk <thomas@meandmymac.de>
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+# Build and test steps shared by the CI and the release workflow
+# (see openspec/specs/continuous-integration). Must run on an Apple Silicon
+# macOS runner after actions/checkout.
+
+name: Build and test
+description: Builds all firmware targets, runs the host tests and assembles the boot media directories.
+
+runs:
+  using: composite
+  steps:
+    # The extracted toolchains (~1.5 GB) are not cached: bootstrap.sh
+    # re-extracts them from the cached, checksum-verified archives.
+    - name: Restore toolchain cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          toolchain
+          !toolchain/arm-gnu-toolchain-*
+        key: toolchain-macos-arm64-${{ hashFiles('scripts/versions.env', 'scripts/bootstrap.sh', 'scripts/firmware-files.txt') }}
+
+    - name: Build firmware (all targets)
+      shell: bash
+      run: |
+        set -o pipefail
+        mkdir -p build
+        make 2>&1 | tee build/build.log
+
+    # Matches compiler diagnostics ("file:line[:col]: warning:") only, not
+    # git's "warning: ... is not a commit" notice from the Circle clone.
+    - name: Check for compiler warnings
+      shell: bash
+      run: |
+        if grep -E '^[^ ]+:[0-9]+(:[0-9]+)?: warning:' build/build.log; then
+          echo "::error title=Compiler warnings::the firmware build produced compiler warnings (see above)"
+          exit 1
+        fi
+
+    - name: Host unit tests
+      shell: bash
+      run: make test
+
+    - name: Assemble boot media
+      shell: bash
+      run: make sdcard

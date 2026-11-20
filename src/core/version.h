@@ -22,6 +22,16 @@
 #define _raspir_version_h
 
 #define RASPIR_FIRMWARE_NAME    "raspir-blaster"
-#define RASPIR_FIRMWARE_VERSION "0.1.0"
+
+// The firmware build generates build/generated/firmware_version.h from the
+// VERSION make variable or the VERSION file (release branches). Builds without
+// it, e.g. the host unit tests, report "dev".
+#if __has_include("firmware_version.h")
+	#include "firmware_version.h"
+#endif
+
+#ifndef RASPIR_FIRMWARE_VERSION
+	#define RASPIR_FIRMWARE_VERSION "dev"
+#endif
 
 #endif

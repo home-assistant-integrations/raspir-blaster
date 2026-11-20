@@ -39,7 +39,8 @@ endif
 FW_DIR   = $(SRCROOT)/src/fw
 CORE_DIR = $(SRCROOT)/src/core
 vpath %.cpp $(FW_DIR) $(CORE_DIR)
-EXTRAINCLUDE = -I $(FW_DIR) -I $(CORE_DIR)
+# build/generated holds firmware_version.h (written by the top-level Makefile).
+EXTRAINCLUDE = -I $(FW_DIR) -I $(CORE_DIR) -I $(SRCROOT)/build/generated
 
 CORE_OBJS = $(notdir $(patsubst %.cpp,%.o,$(wildcard $(CORE_DIR)/*.cpp)))
 
