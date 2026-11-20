@@ -2,6 +2,20 @@
 
 This document summarizes all responses and code components from the entire session—from the general system architecture and specific adaptation for the Raspberry Pi Zero W to the Makefile, JSON parser, MQTT Discovery, and auto-reconnect.
 
+> **Supported boards.** The firmware now builds for the Zero W (BCM2835, 32 bit), Zero 2 W and Pi 3 (BCM2837, 64 bit), and Pi 4 / CM4 (BCM2711, 64 bit), with the same pins on all boards. The board-specific parts below (BCM2835, `RASPPI=1`, `kernel.img`, CYW43430 firmware) describe the original Zero W target. See `openspec/specs/board-support` and the README for the current build targets and SD card layout. On the BCM2711 the PWM oscillator is 54 MHz instead of 19.2 MHz.
+>
+> **Implementation notes (verified against Circle Step51.1.1).** The code snippets below are the original sketch and do not compile against Circle as written. The implementation in `src/` and the OpenSpec change `add-ir-blaster-firmware` are authoritative. Differences found during implementation:
+>
+> - **Scheduler:** the network stack and `CMQTTClient` are `CTask`s. The main loop must yield with `CScheduler::MsSleep()`, not `CTimer::MsDelay()`.
+> - **MQTT `Connect()`** returns `void` and takes `(host, port, clientId, user, password, keepAlive, cleanSession, willTopic, willQoS, willRetain, willPayload, willLength)`; success and failure arrive through `OnConnect()`/`OnDisconnect()`. It resolves DNS and opens TCP synchronously, so the firmware calls it from the client's `OnLoop()` instead of the main loop.
+> - **MQTT QoS:** `CMQTTClient::Publish()` always appends a packet identifier, which corrupts QoS 0 packets. All publishes use QoS 1.
+> - **MQTT packet size:** the default maximum is 1024 bytes; the client is constructed with 5120 for 4 KB payloads. `OnMessage()` also receives a `bRetain` flag; retained commands are ignored.
+> - **GPIO interrupts** need a `CGPIOManager`. There is no `GPIOInterruptOnBothEdges`: use `EnableInterrupt(GPIOInterruptOnRisingEdge)` plus `EnableInterrupt2(GPIOInterruptOnFallingEdge)`. `CGPIOPinInterrupt` does not exist.
+> - **PWM:** `CPWMOutput(GPIOClockSourceOscillator, 2, range, TRUE)` gives a 9.6 MHz PWM clock; range = 9.6 MHz / freq and mark value = range / 3. There is no `SetClockRate()`: the object is re-created when the frequency changes. `CPWMOutput` does not configure the pin; GPIO18 must be set to `GPIOModeAlternateFunction5`.
+> - **Watchdog:** `CBcmWatchdog::Start(seconds)` both starts and reloads the watchdog.
+> - **JSON parsing:** values are validated strictly and rejected, not clamped (an out-of-range `freq` is no longer replaced by 38000).
+> - **Escapes:** several string literals in the snippets lost their backslashes when this document was rendered (e.g. `"{"freq":...` and `buf[copyLen] = ' '`, which should be `'\0'`).
+
 ---
 
 ## Part 1: General System Architecture & Fundamentals

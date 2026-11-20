@@ -1,0 +1,12 @@
+-xc++
+-std=c++17
+--target=arm-none-eabi
+-ffreestanding
+-fno-exceptions
+-fno-rtti
+-DRASPPI=1
+-DAARCH=32
+-DSTDLIB_SUPPORT=1
+-I../core
+-I../../toolchain/circle/include
+-I../../toolchain/circle/addon

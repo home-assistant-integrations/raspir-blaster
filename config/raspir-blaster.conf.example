@@ -1,0 +1,47 @@
+#
+#  raspir-blaster.conf.example
+#  raspir-blaster
+#
+#  Created by Thomas Bonk on 2026-11-20.
+#  Copyright 2026 Thomas Bonk <thomas@meandmymac.de>
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+# Copy this file to the root of the SD card as "raspir-blaster.conf"
+# and adjust the values. Format: one key=value per line, "#" starts a comment.
+
+# MQTT broker (required): IPv4 address or host name, max 63 characters.
+mqtt_host=192.168.1.100
+
+# MQTT broker port (optional, 1-65535, default 1883).
+mqtt_port=1883
+
+# MQTT credentials (optional, max 63 characters each).
+# Leave mqtt_user unset for anonymous access; mqtt_password is ignored then.
+#mqtt_user=mqtt_user
+#mqtt_password=mqtt_password
+
+# Device identifier (optional, 1-31 characters of a-z, 0-9 and _,
+# default pi_zero_ir). Used as MQTT client id, DHCP host name and for
+# Home Assistant discovery. Must be unique per broker.
+#device_id=pi_zero_ir
+
+# Base MQTT topic (optional, 1-63 characters, no "+", "#" or trailing "/",
+# default home/ir_blaster). Topics used: <topic_base>/send,
+# <topic_base>/received and <topic_base>/status.
+#topic_base=home/ir_blaster
+
+# Silence in milliseconds that ends a received IR frame (optional, 5-60,
+# default 15). Increase it if air-conditioner frames get split.
+#ir_frame_gap_ms=15

@@ -6,50 +6,71 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Bare-metal IR blaster and receiver for a Raspberry Pi Zero W, built on the [Circle](https://github.com/rsta2/circle) C++ framework (no Linux). It bridges Home Assistant and infrared over MQTT: payloads from HA are transmitted as IR, and IR from physical remotes is published back to HA.
 
-Technical details are described in the [technical design document](docs/dev/raspir-blaster-home-assistant.md).
+Technical details are described in the [technical design document](docs/dev/raspir-blaster-home-assistant.md). The authoritative requirements are in `openspec/specs/`; the design decisions behind them are in the archived change `openspec/changes/archive/2026-11-20-add-ir-blaster-firmware/design.md`.
 
-## Project state
+## Commands
 
-No source code or build system exists yet. The repo contains only the design document, the development guidelines and the OpenSpec scaffolding. It is not yet a git repository.
+```sh
+make                    # bootstrap toolchain/ on first run, then build all targets into build/images/<target>/
+make TARGETS=rpi3       # build only some targets (rpi0w rpi3 rpi4 rpi4-emmc)
+make test               # host unit tests for src/core (clang++, ASan/UBSan)
+make sdcard             # build/sdcard/ (universal card) + build/cm4-emmc/; needs all four images
+make firmware-checksums # refresh scripts/firmware-files.txt after bumping a pinned firmware commit
+make clean / distclean  # distclean also removes toolchain/
+make WATCHDOG_TEST=1    # test images whose main loop hangs after 30 s (watchdog must reboot it)
+```
+
+There is no single-test filter: `make test` runs every `TEST (...)` in `tests/*.cpp` (fast, < 1 s). New test files are picked up by wildcard.
 
 ## Toolchain & build
 
-- **Target SoC: BCM2835** (Raspberry Pi Zero W; single-core ARM1176JZF-S, ARMv6). This fixes the build settings: `RASPPI = 1`, `AARCH = 32` (64-bit is not supported), `PREFIX = arm-none-eabi-` and kernel image `kernel.img`. The Wi-Fi chip is the CYW43438, which uses the `brcmfmac43430-sdio.*` firmware.
-- The SoC has a single core. Busy-wait IR transmission and ISRs block everything else, including networking, so keep ISRs minimal.
-- The toolchain and the Circle sources are downloaded during the first build and stored in `toolchain/`. This directory is git-ignored. Never commit it or vendor its contents elsewhere.
-- The build host is macOS, so the download step must fetch the macOS build of the ARM GNU toolchain.
-- How Circle builds work:
-  1. A `Config.mk` in the Circle root sets `RASPPI`, `AARCH` and `PREFIX`.
-  2. `./makeall` builds the core libraries.
-  3. Each addon is built separately with `make` in its own directory: `addon/SDCard`, `addon/fatfs`, `addon/wlan` and `addon/wlan/hostap/wpa_supplicant`.
-  4. The app `Makefile` sets `CIRCLEHOME`, lists the `.a` libraries in `LIBS` (link order matters) and includes `$(CIRCLEHOME)/Rules.mk`. The output is a `kernel*.img`.
-- SD card (FAT32) contents: the Pi boot firmware (`bootcode.bin`, `start.elf`, `fixup.dat`), the kernel image, the Wi-Fi firmware from Circle's `addon/wlan/firmware` and `wpa_supplicant.conf`. Keep Wi-Fi and MQTT credentials out of the repo.
+- The corresponding toolchain as well as the Circle sources are downloaded during the first build into the git-ignored `toolchain/` directory, by `scripts/bootstrap.sh`. Never commit it or vendor its contents elsewhere. Versions (toolchain release + SHA-256, Circle tag) are pinned in `scripts/versions.env`; the bootstrap steps are guarded by stamp files that encode these versions.
+- Build host: macOS on Apple Silicon only (ARM publishes no Intel macOS build of the pinned toolchains).
+- **Build targets** (`openspec/specs/board-support`):
 
-## Architecture (planned)
+  | Target | Boards | Circle config | Image |
+  | --- | --- | --- | --- |
+  | `rpi0w` | Zero W (BCM2835, ARMv6) | `RASPPI=1 AARCH=32`, `arm-none-eabi-` | `kernel.img` |
+  | `rpi3` | Zero 2 W, 3B/B+/A+ | `RASPPI=3 AARCH=64`, `aarch64-none-elf-` | `kernel8.img` |
+  | `rpi4` | 4B, CM4 Lite | `RASPPI=4 AARCH=64` | `kernel8-rpi4.img` |
+  | `rpi4-emmc` | CM4 with eMMC | as `rpi4` + `-DUSE_EMBEDDED_MMC_CM` | `kernel8-rpi4.img` |
 
-- **`CKernel`** owns all devices, and initialization order matters: interrupt → timer → EMMC + FatFs mount `SD:` → WLAN (firmware read from `SD:/firmware/`) → net subsystem → WPA supplicant. WLAN cannot start before the SD card is mounted.
-- **Raw timings everywhere, by design.** The firmware does not decode protocols. Signals are arrays of µs durations (even index = mark, odd = space). This covers NEC, Sony, RC5/RC6 and long air-conditioner frames (100–300+ edges) without per-protocol code. Keep it that way unless a change explicitly says otherwise.
-- **Pins (fixed by capability):** IR TX is on GPIO18 (header pin 12), because it is the hardware PWM0 pin (Circle `PWM_CHANNEL1`). IR RX (TSOP38238) is on GPIO23 (header pin 16), using an edge interrupt. Don't confuse header pin numbers with GPIO numbers.
-- **IR RX:** a GPIO interrupt on both edges stores edge deltas into a buffer of at least 512 entries. A frame ends after 15 ms of silence, and the main loop (not the ISR) publishes it.
-- **IR TX:** the carrier comes from hardware PWM at the `freq` given in the payload (36/38/40 kHz) with 33% duty. The RX interrupt is disabled during transmit so the device does not capture its own signal.
-- **MQTT payload**, identical in both directions: `{"freq":38000,"raw":[9000,4500,560,...]}`. It is parsed by a small zero-allocation parser (no JSON library). Limits: 4 KB payload, 512 timings, `freq` between 20–60 kHz.
-- **Topics:** `home/ir_blaster/send` (command), `home/ir_blaster/received` (state) and `home/ir_blaster/status` (availability: `online`/`offline` via LWT, retained). HA MQTT Discovery configs go under `homeassistant/<component>/pi_zero_ir/...`, published retained after each connect.
-- **Main loop:** a reconnect state machine (Wi-Fi up → MQTT connect with a 5 s backoff → subscribe and publish discovery), with an optional `CBcmWatchdog`.
+  Pi 5/CM5 are out of scope (RP1 I/O chip). Never assume a single SoC: code that touches clocks or peripherals must work on BCM2835, BCM2837 and BCM2711.
+- Circle builds its libraries inside its source tree, for one configuration. `toolchain/circle/` is a pristine checkout (with the hostap submodule); the bootstrap makes one APFS clone per target, `toolchain/circle-<target>/`, writes its `Config.mk` and builds it there. Do not build inside `toolchain/circle/`.
+- The firmware is built out of tree: the top-level Makefile runs `src/fw/Makefile` in `build/obj/<target>/` with `SRCROOT`/`CIRCLEHOME`. Nothing is written to `src/fw/`.
+- Boot files (`raspberrypi/firmware`) and Wi-Fi firmware (`RPi-Distro/firmware-nonfree`) are downloaded by `scripts/sdcard.sh` with `curl` at commits pinned in `versions.env`, listed with SHA-256 in `scripts/firmware-files.txt` (shared helpers in `scripts/firmware-lib.sh`). Circle's own download Makefiles need `wget`, which macOS lacks. The SD card `config.txt` files are tracked in `config/` (board filters `[pi0w]`, `[pi02]`, `[pi3]`, `[pi3+]`, `[pi4]`, `[cm4]`).
 
-## Open issues in the design doc (resolve before implementing)
+## Code layout and architecture
 
-1. **The code snippets are illustrative and not checked against Circle's API.** Verify them against the headers in `toolchain/circle/include` and the Circle samples before reusing anything. Known gaps:
-   - Circle networking and `CMQTTClient` run as `CTask`s, which need a `CScheduler`. The main loop must yield (scheduler sleep), not busy-wait with `MsDelay`.
-   - GPIO interrupts need a `CGPIOManager`.
-   - `CMQTTClient::Connect` is asynchronous (results arrive through `OnConnect`/`OnDisconnect`), and its signature differs from the doc's.
-   - The default max MQTT packet size is too small for 4 KB payloads.
-   - The doc's PWM frequency API (`SetClockRate`) does not match `CPWMOutput`.
-   - Markdown rendering stripped escapes from the snippets (unescaped quotes in JSON string literals, `' '` where `'\0'` was meant).
+- `src/core/` — hardware-independent logic, compiled both by the host tests and into the firmware: config parser, JSON tokenizer, IR message codec, frame assembler, carrier calculator, backoff, discovery builder, TX queue. It may only include `<stdint.h>`/`<stddef.h>` (no libc, no libc++, no Circle headers); the host build enforces this with `-nostdinc++`, and `coreheaders.cpp` includes every header in both builds. Put new testable logic here.
+- `src/fw/` — Circle-dependent code: `CKernel` (devices, main loop), `CIRReceiver` (GPIO23 ISR), `CIRTransmitter` (PWM on GPIO18), `CIRMqttClient`. The fw `Makefile` compiles all `src/core/*.cpp` via `vpath`; add new fw files to `FW_OBJS`. SoC differences are handled with `#if RASPPI ...` in `src/fw` only; `src/core` gets them as parameters (e.g. the oscillator frequency for `IRCarrierCompute`).
+- `tests/` — tiny self-made test framework (`test.h`: `TEST`, `CHECK`, `CHECK_EQ`, `CHECK_STR`).
+
+Runtime model (single core, cooperative `CScheduler`):
+- **Main task** (`CKernel::Run`): feeds the 10 s watchdog, drains completed RX frames and publishes them, drains the TX queue, updates the ACT LED, then `MsSleep`s to yield. It must never block for long.
+- **MQTT task** (`CIRMqttClient`, a `CTask`): runs the connect/backoff state machine in `OnLoop()`, because `CMQTTClient::Connect()` blocks on DNS + TCP. `OnMessage()` only parses and pushes to the TX queue.
+- **ISR** (`CIRReceiver::InterruptHandler`): only stores edge timestamps in `CIRFrameAssembler`. The assembler does gap segmentation itself, with two capture buffers, so frames survive the main loop being busy (up to 2 s per transmission). Main-loop calls into the assembler are wrapped in `EnterCritical`/`LeaveCritical`.
+- Raw timings everywhere, by design: no protocol decoding. Even index = mark, odd = space. Messages are validated strictly (rejected, never clamped); limits: 4096 B payload, 512 timings, each 1–65535 µs, ≤ 2 s total, `freq` 20–60 kHz.
+- States: config missing/invalid → *degraded* (no MQTT, slow ACT blink, watchdog fed, no reboot loop); driver failure → *fatal* (fast blink, watchdog reboots after 10 s).
+- Pins (identical on all boards): IR TX = GPIO18 / header pin 12 (PWM0, ALT5, `PWM_CHANNEL1`); IR RX = GPIO23 / header pin 16. Serial log on UART0 (GPIO14/15, 115200). The boot log names the board (`CMachineInfo::GetMachineName()`), which is also the HA discovery `model`.
+
+## Circle API facts (verified against Step51.1.1)
+
+The design doc's code snippets predate the implementation and do not match Circle. Trust the headers in `toolchain/circle/include` and the code in `src/fw/`.
+- `CMQTTClient::Publish()` always appends a packet identifier, which corrupts QoS 0 PUBLISH packets. **Publish with QoS ≥ 1 only.**
+- `CMQTTClient::Connect(host, port, clientId, user, pass, keepAlive, cleanSession, willTopic, willQoS, willRetain, willPayload, willLen)` returns `void`; results arrive via `OnConnect`/`OnDisconnect` (the latter may be called synchronously from `Connect`). Default max packet size is 1024 — the client uses 5120.
+- GPIO has no "both edges" interrupt: use `EnableInterrupt(GPIOInterruptOnRisingEdge)` + `EnableInterrupt2(GPIOInterruptOnFallingEdge)`; interrupts need a `CGPIOManager`.
+- `CPWMOutput(GPIOClockSourceOscillator, divider, range, bMSMode)` has no runtime frequency setter: the transmitter re-creates it when `freq` changes. It does not mux the pin; set GPIO18 to `GPIOModeAlternateFunction5` yourself. The oscillator is 19.2 MHz on BCM2835/2837 but **54 MHz on BCM2711** (Pi 4/CM4).
+- `USE_EMBEDDED_MMC_CM` (CM4 eMMC instead of SD card) is a compile-time switch for all of Circle, including the layout of `CEMMCDevice` in `SDCard/emmc.h`; it is set via `DEFINE +=` in the target's `Config.mk`, which the firmware build inherits through `Rules.mk`.
+- 64-bit images are not gzipped (`GZIP_KERNEL` defaults to 0 in Circle's `Rules.mk`).
+- `CBcmWatchdog::Start(seconds)` both starts and reloads the watchdog (max 15 s).
+- On RASPPI ≤ 3, `USE_SDHOST` is the default: the SD card uses SDHOST, the WLAN uses the EMMC controller.
+- `CMQTTClient::Connect` warns if the client ID exceeds 23 characters; `device_id` allows 31.
 
 ## Conventions
 
 - Every file that allows comments starts with the header from [docs/dev/development-guidelines.md](docs/dev/development-guidelines.md) (file name, module, author/date, Apache-2.0 license).
-- Follow Circle's code style, as the design doc does: `C`-prefixed classes, `m_` members, `p`/`n`/`b` prefixes, `boolean`/`TRUE`/`FALSE`.
+- Follow Circle's code style: `C`-prefixed classes, `T`-prefixed types, `m_` members, `p`/`n`/`b` prefixes, tabs; `boolean`/`TRUE`/`FALSE` in `src/fw`, `bool` in `src/core`.
 - Use conventional commits.
 
 ## Workflow: OpenSpec
