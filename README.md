@@ -151,16 +151,42 @@ Builds outside a release report `dev`.
 
 ### Making a release
 
+Every pull request with a user-visible change adds an entry under
+`## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) (format:
+[Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), categories
+`### Added`, `### Changed`, `### Fixed`, ...).
+
 Maintainers start a release under **Actions → Release → Run workflow** on
 `main`. The workflow:
 
-1. computes the next version and creates the branch `rel-<version>` with a
-   `VERSION` file,
-2. builds and tests the firmware on that branch,
-3. publishes the GitHub release `<version>` with the files above.
+1. computes the next version,
+2. moves the `[Unreleased]` entries of `CHANGELOG.md` into a section
+   `## [<version>] - <date>` and updates the compare links at the end of the
+   file,
+3. creates the branch `rel-<version>` with one commit that adds a `VERSION`
+   file and contains the updated `CHANGELOG.md`,
+4. builds and tests the firmware on that branch,
+5. publishes the GitHub release `<version>` with the files above. The release
+   notes show the download table, the version's changelog section and
+   GitHub's generated list of pull requests.
 
-If a step fails, the workflow deletes the release branch again, so the version
-number is used by the next run. Only one release runs at a time.
+The workflow stops before creating the release branch if `[Unreleased]` has no
+entries, or if `CHANGELOG.md` on `main` does not contain the previous release
+yet. If a later step fails, the workflow deletes the release branch again, so
+the version number is used by the next run. Only one release runs at a time.
+
+The workflow never writes to `main`. After each release, bring the released
+changelog back to `main` with a pull request:
+
+```sh
+git switch -c changelog-<version> origin/main
+git checkout origin/rel-<version> -- CHANGELOG.md
+git commit -m "docs(changelog): <version>"
+git push -u origin changelog-<version>   # then open the pull request
+```
+
+Only copy `CHANGELOG.md`; never merge `rel-<version>` into `main`, because
+that would bring the `VERSION` file along.
 
 Repository settings this needs: GitHub Actions enabled, workflow permissions
 allowing `contents: write`, and no branch protection or ruleset on `rel-*`

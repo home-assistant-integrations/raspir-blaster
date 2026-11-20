@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Bare-metal IR blaster and receiver for a Raspberry Pi Zero W, built on the [Circle](https://github.com/rsta2/circle) C++ framework (no Linux). It bridges Home Assistant and infrared over MQTT: payloads from HA are transmitted as IR, and IR from physical remotes is published back to HA.
 
-Technical details are described in the [technical design document](docs/dev/raspir-blaster-home-assistant.md). The authoritative requirements are in `openspec/specs/`; the design decisions behind them are in the `design.md` files of the archived changes in `openspec/changes/archive/` (`add-ir-blaster-firmware`: firmware architecture; `add-multi-board-builds`: build targets and boot media; `add-ci-release-workflows`: CI, releases and versioning).
+Technical details are described in the [technical design document](docs/dev/raspir-blaster-home-assistant.md). The authoritative requirements are in `openspec/specs/`; the design decisions behind them are in the `design.md` files of the archived changes in `openspec/changes/archive/` (`add-ir-blaster-firmware`: firmware architecture; `add-multi-board-builds`: build targets and boot media; `add-ci-release-workflows`: CI, releases and versioning; `add-release-changelog`: changelog in releases).
 
 ## Commands
 
@@ -22,12 +22,13 @@ make VERSION=2026.11.0  # firmware version; default: VERSION file (release branc
 scripts/package-release.sh <version>   # release zips + SHA256SUMS.txt after `make VERSION=<version> sdcard`
 ```
 
-`make test` also runs the shell tests in `tests/scripts/` (version calculation).
+`make test` also runs the shell tests in `tests/scripts/` (version calculation, changelog).
 
 ## CI and releases (`.github/`)
 
 - `workflows/ci.yml`: every push except `rel-*` branches, on `macos-15` (arm64). `actions/build-and-test` (composite, shared with the release) does `make` (fails on compiler warnings), `make test`, `make sdcard`; it caches `toolchain/` except the extracted toolchains, keyed on `versions.env`, `bootstrap.sh` and `firmware-files.txt`.
-- `workflows/release.yml`: manual from `main` only; `scripts/next-version.sh` computes `yyyy.mm.rm` from the `rel-*` branches/tags. It creates `rel-<version>` with a `VERSION` commit, builds there, publishes a GitHub release `<version>`, and deletes the branch/tag/release on failure.
+- `workflows/release.yml`: manual from `main` only; `scripts/next-version.sh` computes `yyyy.mm.rm` from the `rel-*` branches/tags. `scripts/changelog.sh release` moves `[Unreleased]` in `CHANGELOG.md` into a dated section (fails if it is empty or the previous release's changelog was not copied back to `main`). It creates `rel-<version>` with one commit of `VERSION` + `CHANGELOG.md`, builds there, publishes a GitHub release `<version>` (notes: header + `changelog.sh section` + generated notes), and deletes the branch/tag/release on failure. The workflow never pushes to `main`; the changelog comes back via a PR (`git checkout rel-<version> -- CHANGELOG.md`).
+- Add a `CHANGELOG.md` entry under `## [Unreleased]` for every user-visible change (Keep a Changelog 1.1.0). `scripts/changelog.sh` uses POSIX `awk` only: it runs with BSD awk locally and mawk on the Ubuntu release runner.
 - Never commit a `VERSION` file on `main`: it would set the version of every build. The `VERSION` environment variable is ignored on purpose.
 - Pass `${{ }}` values to `run:` only via `env:`.
 - The firmware version reaches the code through `build/generated/firmware_version.h` (rewritten only on change; the top-level Makefile then deletes dependent objects because macOS's make 3.81 has one-second timestamp resolution). `src/core/version.h` falls back to `"dev"` via `__has_include`.
