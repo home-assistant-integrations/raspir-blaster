@@ -1,7 +1,7 @@
 # connectivity Specification
 
 ## Purpose
-TBD - created by archiving change add-ir-blaster-firmware. Update Purpose after archive.
+How the device joins Wi-Fi and stays connected to the MQTT broker: connection, reconnect backoff, availability (LWT) and the watchdog-backed error states.
 ## Requirements
 ### Requirement: Wi-Fi and DHCP bring-up
 At boot the firmware SHALL mount its boot storage (SD card, or eMMC on a CM4 with eMMC). It SHALL load the Wi-Fi firmware for the detected chip (CYW43430, 43436, 43455 or 43456) from `SD:/firmware/`, join the Wi-Fi network configured in `wpa_supplicant.conf`, and obtain an IPv4 address via DHCP using the host name `<device_id>`.

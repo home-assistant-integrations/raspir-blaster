@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Bare-metal IR blaster and receiver for a Raspberry Pi Zero W, built on the [Circle](https://github.com/rsta2/circle) C++ framework (no Linux). It bridges Home Assistant and infrared over MQTT: payloads from HA are transmitted as IR, and IR from physical remotes is published back to HA.
 
-Technical details are described in the [technical design document](docs/dev/raspir-blaster-home-assistant.md). The authoritative requirements are in `openspec/specs/`; the design decisions behind them are in the `design.md` files of the archived changes in `openspec/changes/archive/` (`add-ir-blaster-firmware`: firmware architecture; `add-multi-board-builds`: build targets and boot media).
+Technical details are described in the [technical design document](docs/dev/raspir-blaster-home-assistant.md). The authoritative requirements are in `openspec/specs/`; the design decisions behind them are in the `design.md` files of the archived changes in `openspec/changes/archive/` (`add-ir-blaster-firmware`: firmware architecture; `add-multi-board-builds`: build targets and boot media; `add-ci-release-workflows`: CI, releases and versioning).
 
 ## Commands
 
