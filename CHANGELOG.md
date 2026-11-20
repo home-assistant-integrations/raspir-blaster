@@ -9,6 +9,8 @@ the [README](README.md#releases).
 
 ## [Unreleased]
 
+## [2026.11.1] - 2026-11-20
+
 ### Added
 
 - 3D-printable enclosure for the Raspberry Pi Zero W in `case/`: SolidCraft
@@ -64,5 +66,6 @@ verified on hardware yet.
 - GitHub Actions: CI builds and tests every pushed commit, and a manual
   release workflow publishes versioned releases.
 
-[unreleased]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.0...HEAD
+[unreleased]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.1...HEAD
+[2026.11.1]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.0...2026.11.1
 [2026.11.0]: https://github.com/home-assistant-integrations/raspir-blaster/releases/tag/2026.11.0
