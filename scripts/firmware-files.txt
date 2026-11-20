@@ -1,0 +1,57 @@
+#
+#  firmware-files.txt
+#  raspir-blaster
+#
+#  Created by Thomas Bonk on 2026-11-20.
+#  Copyright 2026 Thomas Bonk <thomas@meandmymac.de>
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+# Boot files and Wi-Fi firmware for the SD card / eMMC directories.
+# Downloaded at the commits pinned in scripts/versions.env and verified
+# against the SHA-256 in the first column. Regenerate the checksums with
+# "make firmware-checksums" after changing a pinned commit.
+#
+# Columns: sha256  source  path-in-repo  destination  outputs
+#   source:      boot (raspberrypi/firmware, boot/)
+#                wifi (RPi-Distro/firmware-nonfree, debian/config/brcm80211/)
+#   destination: path in the output directory
+#   outputs:     comma-separated list of output directories (sdcard, cm4-emmc)
+
+# --- Boot files ------------------------------------------------------------
+c7283ff51f863d93a275c66e3b4cb08021a5dd4d8c1e7acc47d872fbe52d3d6b  boot  LICENCE.broadcom                      LICENCE.broadcom                        sdcard,cm4-emmc
+4948532b1c5b60935388301715154ad8d3ed394727568d830ea883468a3f5ef9  boot  bootcode.bin                          bootcode.bin                            sdcard
+14d54df30f437e2120dd99f81ae0427ad033a7ed258e20b366a5ffcff5633e35  boot  start.elf                             start.elf                               sdcard
+bf23063135feaba121b2a8340cc1d25425d921551c8cb3446efd21f3aa50f396  boot  fixup.dat                             fixup.dat                               sdcard
+61d198caf99fdf3b82467dc7b5319a6bae1a99fe22c94fdafaa86711490a0c23  boot  start4.elf                            start4.elf                              sdcard,cm4-emmc
+304b53a7a5a7129531b2674b0fd55240086c5bbd276ff029c63cd68fcf28c0e1  boot  fixup4.dat                            fixup4.dat                              sdcard,cm4-emmc
+489497a260b2b541fc6921faa9547176456d692027e4a5cc7f3a578756dd2289  boot  bcm2710-rpi-zero-2-w.dtb              bcm2710-rpi-zero-2-w.dtb                sdcard
+78327a03eb80f4ce8869768541a116c17894f37e52475332892ac6eee1644437  boot  bcm2711-rpi-4-b.dtb                   bcm2711-rpi-4-b.dtb                     sdcard
+c8b4a22717cf9f76fb454f08f1d6ec41030dfc2c57583a6f3a29bdb6c345bda5  boot  bcm2711-rpi-cm4.dtb                   bcm2711-rpi-cm4.dtb                     sdcard,cm4-emmc
+
+# --- Wi-Fi firmware (names as expected by Circle's wlan addon) -------------
+0717f8e798f3962230e76e9d840385ba127a38d31d6a55acd5c97cf53e4acc9d  wifi  cypress/cyfmac43430-sdio.bin          firmware/brcmfmac43430-sdio.bin         sdcard,cm4-emmc
+fc3949a4c32f07c18308e7e145c7615be314158e7d714a80e04e4791f16495f9  wifi  brcm/brcmfmac43430-sdio.txt           firmware/brcmfmac43430-sdio.txt         sdcard,cm4-emmc
+3376b9c9b32d16bf762e21c7fafb665365070ae240d092498d0d1987c22022aa  wifi  cypress/cyfmac43430-sdio.clm_blob     firmware/brcmfmac43430-sdio.clm_blob    sdcard,cm4-emmc
+510a7dd1e056199b309425548ee0bd846993a1837ac7fa1e4d3e641f05a1327a  wifi  brcm/brcmfmac43436-sdio.bin           firmware/brcmfmac43436-sdio.bin         sdcard,cm4-emmc
+4cda90facd8844cff60d80b34b24ecbae76adb9a62508a109461b8bf42b478d1  wifi  brcm/brcmfmac43436-sdio.txt           firmware/brcmfmac43436-sdio.txt         sdcard,cm4-emmc
+fce7cbb62ffa6a5a65ca97b13f6fbf28d06c02d986c2072d65bf72164755fc34  wifi  brcm/brcmfmac43436-sdio.clm_blob      firmware/brcmfmac43436-sdio.clm_blob    sdcard,cm4-emmc
+68b9bcc9855d91733cd44c21de4cb507c91b0d32d838c0696def5eb96c99e2de  wifi  brcm/brcmfmac43436s-sdio.bin          firmware/brcmfmac43436s-sdio.bin        sdcard,cm4-emmc
+37a8b85a5a9742761101b764a07bc4d0c8b09f2e180eaea3b503a834277ad595  wifi  brcm/brcmfmac43436s-sdio.txt          firmware/brcmfmac43436s-sdio.txt        sdcard,cm4-emmc
+3075cb0bdc4b28ed4f08e01b1a216d0ebc70f4022d9d3272a4a43b3c90456e60  wifi  cypress/cyfmac43455-sdio-minimal.bin  firmware/brcmfmac43455-sdio.bin         sdcard,cm4-emmc
+ca709be81a78bdb6932936374f39943acbd7af07fae6151011127599a3ce9e3d  wifi  brcm/brcmfmac43455-sdio.txt           firmware/brcmfmac43455-sdio.txt         sdcard,cm4-emmc
+9823842cae9fb9a5dd1e5fb31f595516ec7deee341354bef30bb3026eee29cc1  wifi  cypress/cyfmac43455-sdio.clm_blob     firmware/brcmfmac43455-sdio.clm_blob    sdcard,cm4-emmc
+ddf83f2100885b166be52d21c8966db164fdd4e1d816aca2acc67ee9cc28d726  wifi  brcm/brcmfmac43456-sdio.bin           firmware/brcmfmac43456-sdio.bin         sdcard,cm4-emmc
+44e0bb322dc1f39a4b0a89f30ffdd28bc93f7d7aaf534d06d229fe56f6198194  wifi  brcm/brcmfmac43456-sdio.txt           firmware/brcmfmac43456-sdio.txt         sdcard,cm4-emmc
+2dbd7d22fc9af0eb560ceab45b19646d211bc7b34a1dd00c6bfac5dd6ba25e8a  wifi  brcm/brcmfmac43456-sdio.clm_blob      firmware/brcmfmac43456-sdio.clm_blob    sdcard,cm4-emmc
