@@ -127,6 +127,106 @@ The UART log is not affected.
   ports (used for Ethernet), and on the CM4 `otg_mode=1` connects the USB 2
   port to the host controller.
 
+## Installation
+
+You need a micro SD card (any size; the files take about 10 MB), or for a CM4
+with eMMC the [`rpiboot`](https://github.com/raspberrypi/usbboot) tool, and
+an MQTT broker that Home Assistant uses (e.g. the Mosquitto add-on).
+
+### 1. Download
+
+Download the zip for your board from the latest release on the
+[Releases page](https://github.com/home-assistant-integrations/raspir-blaster/releases):
+
+| Board | File |
+| --- | --- |
+| Zero W, Zero 2 W, Pi 3 A+/B/B+, Pi 4 B, CM4 Lite | `raspir-blaster-<version>-sdcard.zip` |
+| CM4 with eMMC | `raspir-blaster-<version>-cm4-emmc.zip` |
+
+The same SD card zip works for every board in the first row: its
+`config.txt` starts the right image for the board it is in. Optionally,
+verify the download with `SHA256SUMS.txt` from the same release, in the
+folder with the zip:
+
+```sh
+shasum -a 256 -c SHA256SUMS.txt   # "OK" for your zip; the other zip is reported missing
+```
+
+### 2. Prepare the SD card
+
+1. Format the card with a single FAT32 partition. On a Mac, find the card
+   with `diskutil list` (check the size: this erases the disk), then e.g.
+   ```sh
+   diskutil eraseDisk FAT32 RBLASTER MBRFormat /dev/disk4
+   ```
+2. Extract the zip and copy its **contents** (`config.txt`, `kernel*.img`,
+   `start*.elf`, `firmware/`, ...) to the top level of the card, not into a
+   subfolder.
+
+### 3. Configure
+
+On the card:
+
+1. Rename `raspir-blaster.conf.example` to `raspir-blaster.conf` and set at
+   least `mqtt_host`, plus `mqtt_user` and `mqtt_password` if your broker
+   needs them (all keys: [Configuration](#configuration-raspir-blasterconf)):
+   ```ini
+   mqtt_host=192.168.1.100
+   mqtt_user=irblaster
+   mqtt_password=secret
+   ```
+2. For Wi-Fi, rename `wpa_supplicant.conf.example` to `wpa_supplicant.conf`
+   and enter your network name and password in `ssid` and `psk` (and your
+   country code in `country`). This file is required on the Zero W,
+   Zero 2 W and Pi 3 A+. On a Pi 3 B/B+, Pi 4 B or CM4 that you connect by
+   Ethernet, leave it out (see [Ethernet or Wi-Fi](#ethernet-or-wi-fi)).
+
+### 4. Start
+
+1. Eject the card, insert it into the Pi, connect the IR modules (see
+   [Hardware](#hardware)) and power the Pi. With Ethernet, plug in the cable
+   before powering up.
+2. Within about 30 s the device appears in Home Assistant under
+   **Settings → Devices & services → MQTT** as "raspir-blaster
+   (`<device_id>`)" with an "IR Receiver" sensor (see
+   [Home Assistant](#home-assistant)).
+
+If it does not appear, the ACT LED tells you why:
+
+| ACT LED | Meaning |
+| --- | --- |
+| short flash on IR activity, otherwise off | running |
+| slow blink (1 s on, 1 s off) | configuration missing or invalid: check the two files |
+| fast blink | hardware or driver error; the device reboots after 10 s |
+
+The log names the problem: over USB on the Zero W, Zero 2 W, Pi 3 A+ and
+Pi 4 B (see [Reading the log over USB](#reading-the-log-over-usb)), or with a
+serial adapter on UART0 on every board.
+
+### Compute Module 4 with eMMC
+
+A CM4 with eMMC boots from its eMMC instead of an SD card:
+
+1. Set the carrier board's boot jumper to USB boot (e.g. "Fit jumper to
+   disable eMMC Boot" on the CM4 IO Board), connect its USB port to the Mac
+   and run `rpiboot`. The eMMC then appears as a USB drive.
+2. Make sure the eMMC has a FAT32 partition, then copy the **contents** of
+   the `cm4-emmc` zip to it.
+3. Configure the two files as in step 3.
+4. Remove the jumper and power-cycle the module.
+
+### Updating
+
+Copy the contents of the new zip over the old files on the card, but keep
+your `raspir-blaster.conf` and `wpa_supplicant.conf` (the zip only contains
+the `.example` files, so they are not overwritten).
+
+### Building the card yourself
+
+`make sdcard` (after `make` for all targets, see [Building](#building))
+creates the same contents in `build/sdcard/` and `build/cm4-emmc/`. Use them
+instead of the zips in steps 2 to 4.
+
 ## Building
 
 Requirements: macOS on Apple Silicon, `make`, `git`, `curl`, and Xcode's
@@ -163,39 +263,6 @@ pinned firmware commit, run `make firmware-checksums` and review the result.
 The first build compiles Circle once per target and takes a few minutes;
 later builds only recompile the firmware.
 
-## SD card setup
-
-`make sdcard` needs the images of all targets (run `make` without `TARGETS`).
-`build/sdcard/` boots every supported board except a CM4 with eMMC: its
-`config.txt` selects the right image and CPU mode for each board.
-
-1. Format a micro SD card with a single FAT32 partition.
-2. Run `make sdcard` and copy the **contents** of `build/sdcard/` to the card.
-3. For Wi-Fi: on the card, rename `wpa_supplicant.conf.example` to
-   `wpa_supplicant.conf` and enter your Wi-Fi SSID and password. On a board
-   that you only connect by Ethernet, skip this step (see
-   [Ethernet or Wi-Fi](#ethernet-or-wi-fi)).
-4. On the card, rename `raspir-blaster.conf.example` to `raspir-blaster.conf`
-   and set at least `mqtt_host`.
-5. Insert the card and power the Pi.
-
-### Compute Module 4 with eMMC
-
-A CM4 with eMMC boots from its eMMC, so it uses `build/cm4-emmc/` instead:
-
-1. Set the carrier board's boot jumper to USB boot (e.g. "Fit jumper to
-   disable eMMC Boot" on the CM4 IO Board), connect the USB port to the Mac
-   and run [`rpiboot`](https://github.com/raspberrypi/usbboot). The eMMC then
-   appears as a USB drive.
-2. Make sure the eMMC has a FAT32 partition, then copy the **contents** of
-   `build/cm4-emmc/` to it.
-3. Rename and edit the two example configuration files as above.
-4. Remove the jumper and power-cycle the module.
-
-If the configuration is missing or invalid, the ACT LED blinks slowly
-(1 s on, 1 s off) and the serial log tells you what is wrong. A fast blink
-means a hardware or driver error; the device then reboots after 10 s.
-
 ## Releases
 
 Releases are published on the
@@ -205,7 +272,7 @@ Each release has:
 | File | For |
 | --- | --- |
 | `raspir-blaster-<version>-sdcard.zip` | Zero W, Zero 2 W, Pi 3, Pi 4 B, CM4 Lite: extract onto a FAT32 SD card |
-| `raspir-blaster-<version>-cm4-emmc.zip` | CM4 with eMMC: copy onto the eMMC (see above) |
+| `raspir-blaster-<version>-cm4-emmc.zip` | CM4 with eMMC: copy onto the eMMC (see [Installation](#compute-module-4-with-emmc)) |
 | `SHA256SUMS.txt` | checksums; verify with `shasum -a 256 -c SHA256SUMS.txt` |
 
 **Version scheme:** `yyyy.mm.rm`, with the year and two-digit month of the

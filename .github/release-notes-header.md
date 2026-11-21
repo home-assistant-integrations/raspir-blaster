@@ -34,4 +34,4 @@ Verify the download before using it:
 shasum -a 256 -c SHA256SUMS.txt
 ```
 
-After copying, rename `wpa_supplicant.conf.example` and `raspir-blaster.conf.example` (drop `.example`) and fill in your Wi-Fi and MQTT settings. See the README sections [SD card setup](https://github.com/home-assistant-integrations/raspir-blaster#sd-card-setup) and [Configuration](https://github.com/home-assistant-integrations/raspir-blaster#configuration-raspir-blasterconf).
+After copying, rename `wpa_supplicant.conf.example` and `raspir-blaster.conf.example` (drop `.example`) and fill in your Wi-Fi and MQTT settings. See the README sections [Installation](https://github.com/home-assistant-integrations/raspir-blaster#installation) and [Configuration](https://github.com/home-assistant-integrations/raspir-blaster#configuration-raspir-blasterconf).
