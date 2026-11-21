@@ -74,7 +74,6 @@ TEST (ConfigParsesKeyValueWithWhitespaceAndCRLF)
 	CHECK (P.bValid);
 	CHECK_STR (P.Config.MQTTHost, "192.168.1.10");
 	CHECK_EQ (P.Config.nMQTTPort, 1883u);
-	CHECK (P.Messages.empty ());
 }
 
 TEST (ConfigIgnoresCommentsAndBlankLines)
@@ -83,7 +82,6 @@ TEST (ConfigIgnoresCommentsAndBlankLines)
 
 	CHECK (P.bValid);
 	CHECK_STR (P.Config.MQTTHost, "broker.local");
-	CHECK (P.Messages.empty ());
 }
 
 TEST (ConfigHandlesMissingFinalNewline)
@@ -135,7 +133,7 @@ TEST (ConfigDefaultsWithOnlyRequiredKey)
 	CHECK_EQ (P.Config.nMQTTPort, 1883u);
 	CHECK (!P.Config.bHasUser);
 	CHECK (!P.Config.bHasPassword);
-	CHECK_STR (P.Config.DeviceID, "pi_zero_ir");
+	CHECK_STR (P.Config.DeviceID, "pi-zero-ir");
 	CHECK_STR (P.Config.TopicBase, "home/ir_blaster");
 	CHECK_EQ (P.Config.nIRFrameGapMs, 15u);
 }
@@ -146,17 +144,19 @@ TEST (ConfigAcceptsAllValidValues)
 			   "mqtt_port=65535\n"
 			   "mqtt_user=ha\n"
 			   "mqtt_password=secret\n"
-			   "device_id=living_ir_2\n"
+			   "device_id=living-ir-2\n"
 			   "topic_base=house/living/ir\n"
-			   "ir_frame_gap_ms=60\n");
+			   "ir_frame_gap_ms=60\n"
+			   "ota_password=ValidPass1\n");
 
 	CHECK (P.bValid);
 	CHECK (P.Messages.empty ());
+	CHECK (P.Config.bHasOTAPassword);
 	CHECK_EQ (P.Config.nMQTTPort, 65535u);
 	CHECK (P.Config.bHasUser);
 	CHECK_STR (P.Config.MQTTUser, "ha");
 	CHECK (P.Config.bHasPassword);
-	CHECK_STR (P.Config.DeviceID, "living_ir_2");
+	CHECK_STR (P.Config.DeviceID, "living-ir-2");
 	CHECK_STR (P.Config.TopicBase, "house/living/ir");
 	CHECK_EQ (P.Config.nIRFrameGapMs, 60u);
 }
@@ -178,7 +178,7 @@ TEST (ConfigRejectsMalformedNumbers)
 
 	CHECK_EQ (P.Config.nMQTTPort, 1883u);
 	CHECK_EQ (P.Config.nIRFrameGapMs, 15u);
-	CHECK_EQ (P.Messages.size (), 2u);
+	CHECK_EQ (P.Messages.size (), 3u);	// 2 invalid values + ota_password warning
 }
 
 TEST (ConfigGapRangeBoundaries)
@@ -190,12 +190,15 @@ TEST (ConfigGapRangeBoundaries)
 
 TEST (ConfigValidatesDeviceID)
 {
-	CHECK_STR (Parse ("mqtt_host=h\ndevice_id=Living\n").Config.DeviceID, "pi_zero_ir");
-	CHECK_STR (Parse ("mqtt_host=h\ndevice_id=a-b\n").Config.DeviceID, "pi_zero_ir");
+	// Uppercase and '_' are rejected: device_id is also used as the DHCP/mDNS
+	// host name, so only [a-z0-9-] is allowed.
+	CHECK_STR (Parse ("mqtt_host=h\ndevice_id=Living\n").Config.DeviceID, "pi-zero-ir");
+	CHECK_STR (Parse ("mqtt_host=h\ndevice_id=living_room\n").Config.DeviceID, "pi-zero-ir");
+	CHECK_STR (Parse ("mqtt_host=h\ndevice_id=a-b\n").Config.DeviceID, "a-b");
 	CHECK_STR (Parse ("mqtt_host=h\ndevice_id=abcdefghijklmnopqrstuvwxyz01234\n").Config.DeviceID,
 		   "abcdefghijklmnopqrstuvwxyz01234");
 	CHECK_STR (Parse ("mqtt_host=h\ndevice_id=abcdefghijklmnopqrstuvwxyz012345\n").Config.DeviceID,
-		   "pi_zero_ir");
+		   "pi-zero-ir");
 }
 
 TEST (ConfigValidatesTopicBase)
@@ -270,7 +273,8 @@ TEST (ConfigDumpMasksPassword)
 	ConfigDump (P.Config, Buffer, sizeof Buffer);
 
 	CHECK_STR (Buffer, "mqtt_host=h mqtt_port=1883 mqtt_user=u mqtt_password=*** "
-			   "device_id=pi_zero_ir topic_base=home/ir_blaster ir_frame_gap_ms=15");
+			   "device_id=pi-zero-ir topic_base=home/ir_blaster ir_frame_gap_ms=15"
+			   " ota_password=(not set)");
 }
 
 TEST (ConfigDumpOmitsUnsetCredentials)
@@ -280,5 +284,77 @@ TEST (ConfigDumpOmitsUnsetCredentials)
 	ConfigDump (P.Config, Buffer, sizeof Buffer);
 
 	CHECK_STR (Buffer, "mqtt_host=h mqtt_port=1883 "
-			   "device_id=pi_zero_ir topic_base=home/ir_blaster ir_frame_gap_ms=15");
+			   "device_id=pi-zero-ir topic_base=home/ir_blaster ir_frame_gap_ms=15"
+			   " ota_password=(not set)");
+}
+
+// --- ConfigValidateField (POST /api/config strict validation) --------------
+
+TEST (ConfigValidateFieldAcceptsValidValues)
+{
+	TConfig C;
+	ConfigSetDefaults (&C);
+
+	CHECK (ConfigValidateField ("mqtt_host", "broker.local", &C));
+	CHECK_STR (C.MQTTHost, "broker.local");
+
+	CHECK (ConfigValidateField ("mqtt_port", "8883", &C));
+	CHECK_EQ (C.nMQTTPort, 8883u);
+
+	CHECK (ConfigValidateField ("mqtt_user", "ha", &C));
+	CHECK_STR (C.MQTTUser, "ha");
+	CHECK (C.bHasUser);
+
+	CHECK (ConfigValidateField ("mqtt_password", "secret", &C));
+	CHECK_STR (C.MQTTPassword, "secret");
+	CHECK (C.bHasPassword);
+
+	CHECK (ConfigValidateField ("device_id", "living-ir", &C));
+	CHECK_STR (C.DeviceID, "living-ir");
+
+	CHECK (ConfigValidateField ("topic_base", "house/ir", &C));
+	CHECK_STR (C.TopicBase, "house/ir");
+
+	CHECK (ConfigValidateField ("ir_frame_gap_ms", "20", &C));
+	CHECK_EQ (C.nIRFrameGapMs, 20u);
+
+	CHECK (ConfigValidateField ("ota_password", "ValidPass1", &C));
+	CHECK_STR (C.OTAPassword, "ValidPass1");
+	CHECK (C.bHasOTAPassword);
+}
+
+TEST (ConfigValidateFieldRejectsInvalidValues)
+{
+	TConfig C;
+	ConfigSetDefaults (&C);
+	CHECK_STR (C.MQTTHost, "");
+
+	CHECK (!ConfigValidateField ("mqtt_host", "bad host!", &C));
+	CHECK (!ConfigValidateField ("mqtt_port", "70000", &C));
+	CHECK (!ConfigValidateField ("mqtt_port", "0", &C));
+	CHECK (!ConfigValidateField ("device_id", "Living", &C));
+	CHECK (!ConfigValidateField ("topic_base", "a/+/b", &C));
+	CHECK (!ConfigValidateField ("topic_base", "a/b/", &C));
+	CHECK (!ConfigValidateField ("ir_frame_gap_ms", "200", &C));
+	CHECK (!ConfigValidateField ("ota_password", "short", &C));
+}
+
+TEST (ConfigValidateFieldRejectsUnknownKey)
+{
+	TConfig C;
+	ConfigSetDefaults (&C);
+	CHECK (!ConfigValidateField ("not_a_real_key", "x", &C));
+}
+
+TEST (ConfigValidateFieldDoesNotFallBackToDefault)
+{
+	// Unlike ConfigParse()'s ApplyKey(), a failed field must not write any
+	// default into pConfig: the caller (POST /api/config) refuses the
+	// whole request instead of partially applying it.
+	TConfig C;
+	ConfigSetDefaults (&C);
+	C.nMQTTPort = 1883;
+
+	CHECK (!ConfigValidateField ("mqtt_port", "0", &C));
+	CHECK_EQ (C.nMQTTPort, 1883u);	// untouched, not reset to CONFIG_DEFAULT_PORT
 }

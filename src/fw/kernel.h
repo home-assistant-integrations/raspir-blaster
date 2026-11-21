@@ -21,7 +21,9 @@
 #ifndef _kernel_h
 #define _kernel_h
 
+#include "apiserver.h"
 #include "config.h"
+#include "dhcpservertask.h"
 #include "irmessage.h"
 #include "irmqttclient.h"
 #include "irreceiver.h"
@@ -37,6 +39,8 @@
 #include <circle/interrupt.h>
 #include <circle/koptions.h>
 #include <circle/logger.h>
+#include <circle/net/mdnsdaemon.h>
+#include <circle/net/mdnspublisher.h>
 #include <circle/net/netsubsystem.h>
 #include <circle/sched/scheduler.h>
 #include <circle/serial.h>
@@ -64,7 +68,8 @@ private:
 	{
 		StateRunning,
 		StateDegraded,		// configuration problem: no MQTT, slow blink, no reboot
-		StateFatal		// driver failure: reboot via the watchdog
+		StateFatal,		// driver failure: reboot via the watchdog
+		StateSetup		// open AP + API, no MQTT, slow blink (see openspec/specs/web-update)
 	};
 
 	boolean InitializeStorage (void);
@@ -77,6 +82,13 @@ private:
 	boolean WaitForEthernetLink (void);
 	void RebootToWiFi (void);
 	boolean InitializeIR (void);
+	void StartMDNS (void);
+	void StartApiServer (void);
+
+	boolean TryEnterSetupMode (void);
+	void RunSetupLoop (void);
+	void RunDegradedLoop (void);
+	void LeaveSetupMode (void);	// DestroyOpenNet() + stop the DHCP task, on timeout
 
 	void StartUSBLog (void);
 
@@ -116,6 +128,11 @@ private:
 #endif
 
 	CNetSubSystem		*m_pNet;	// created after the config (host name)
+	CmDNSPublisher		*m_pMDNSPublisher;
+	CFirmwareUpdater	m_Updater;
+	CApiServer		*m_pApiServer;
+	TApiContext		m_ApiContext;
+	CDHCPServerTask		*m_pDHCPTask;	// setup mode only
 	CIRMqttClient		*m_pMQTT;
 	CIRReceiver		m_Receiver;
 	CIRTransmitter		m_Transmitter;
@@ -125,9 +142,11 @@ private:
 	boolean			m_bWiFiConfig;	// wpa_supplicant.conf exists
 	boolean			m_bWiFiMarker;	// marker file of the previous boot exists
 	TNetSelection		m_NetSelection;
+	TApiNetwork		m_NetworkType;	// set by CreateNetSubSystem()
 	char			m_Model[96];	// "<board name> (Circle bare-metal)"
 	TIRFrame		m_Frame;	// scratch frame for the main loop
 	TState			m_State;
+	u64			m_nSetupLastActivityMs;	// updated by every API request
 
 	boolean			m_bNetworkWasUp;
 	unsigned		m_nLostFramesLogged;

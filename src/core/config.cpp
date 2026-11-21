@@ -59,9 +59,12 @@ namespace
 		       || (ch >= '0' && ch <= '9') || ch == '.' || ch == '-';
 	}
 
+	// device_id is also used as-is as the DHCP/mDNS host name (see
+	// connectivity and web-update specs), so only characters valid in a
+	// host name are allowed: '_' is not one of them.
 	bool IsDeviceIDChar (char ch)
 	{
-		return (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '_';
+		return (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-';
 	}
 
 	bool IsTopicChar (char ch)
@@ -260,6 +263,35 @@ namespace
 				InvalidValue (Messenger, nLine, "ir_frame_gap_ms", Value);
 			}
 		}
+		else if (CoreStrEqualN (Key.p, Key.n, "ota_password"))
+		{
+			size_t nLen = Value.n;
+			if (nLen >= CONFIG_OTA_PASSWORD_MIN && nLen <= CONFIG_OTA_PASSWORD_MAX)
+			{
+				bool bOK = CopyString (Value, CONFIG_OTA_PASSWORD_MAX,
+				                       IsCredentialChar, pConfig->OTAPassword);
+				pConfig->bHasOTAPassword = bOK;
+				if (!bOK)
+				{
+					pConfig->OTAPassword[0] = '\0';
+					// Never echo: it is a secret.
+					Messenger.Report (nLine, "invalid value for 'ota_password' - ignored",
+					                  NoDetail, "");
+				}
+			}
+			else
+			{
+				pConfig->bHasOTAPassword = false;
+				pConfig->OTAPassword[0] = '\0';
+				if (nLen > 0)
+				{
+					// Too short or too long — but never echo the value.
+					Messenger.Report (nLine,
+					    "invalid value for 'ota_password' (must be 8–63 chars) - ignored",
+					    NoDetail, "");
+				}
+			}
+		}
 		else
 		{
 			Messenger.Report (nLine, "unknown key '", Key, "' ignored");
@@ -278,6 +310,8 @@ void ConfigSetDefaults (TConfig *pConfig)
 	CopyCString (CONFIG_DEFAULT_DEVICE_ID, pConfig->DeviceID);
 	CopyCString (CONFIG_DEFAULT_TOPIC_BASE, pConfig->TopicBase);
 	pConfig->nIRFrameGapMs = CONFIG_DEFAULT_GAP_MS;
+	pConfig->bHasOTAPassword = false;
+	pConfig->OTAPassword[0] = '\0';
 }
 
 bool ConfigParse (const char *pText, size_t nLength, TConfig *pConfig,
@@ -339,6 +373,9 @@ bool ConfigParse (const char *pText, size_t nLength, TConfig *pConfig,
 		return false;
 	}
 
+	if (!pConfig->bHasOTAPassword)
+		Messenger.Send ("'ota_password' is not set: web update API will be disabled");
+
 	return true;
 }
 
@@ -368,4 +405,75 @@ void ConfigDump (const TConfig &Config, char *pBuffer, size_t nSize)
 	Writer.Append (Config.TopicBase);
 	Writer.Append (" ir_frame_gap_ms=");
 	Writer.AppendUnsigned (Config.nIRFrameGapMs);
+
+	if (Config.bHasOTAPassword)
+		Writer.Append (" ota_password=***");
+	else
+		Writer.Append (" ota_password=(not set)");
+}
+
+bool ConfigValidateField (const char *pKey, const char *pValue, TConfig *pConfig)
+{
+	TSlice Key = { pKey, CoreStrLen (pKey) };
+	TSlice Value = Trim ({ pValue, CoreStrLen (pValue) });
+	unsigned nValue;
+
+	if (CoreStrEqualN (Key.p, Key.n, "mqtt_host"))
+	{
+		return CopyString (Value, CONFIG_HOST_MAX, IsHostChar, pConfig->MQTTHost);
+	}
+	else if (CoreStrEqualN (Key.p, Key.n, "mqtt_port"))
+	{
+		if (!ParseUnsigned (Value, 1, 65535, &nValue))
+		{
+			return false;
+		}
+		pConfig->nMQTTPort = nValue;
+		return true;
+	}
+	else if (CoreStrEqualN (Key.p, Key.n, "mqtt_user"))
+	{
+		pConfig->bHasUser = CopyString (Value, CONFIG_USER_MAX, IsCredentialChar,
+						pConfig->MQTTUser);
+		return pConfig->bHasUser;
+	}
+	else if (CoreStrEqualN (Key.p, Key.n, "mqtt_password"))
+	{
+		pConfig->bHasPassword = CopyString (Value, CONFIG_PASSWORD_MAX, IsCredentialChar,
+						    pConfig->MQTTPassword);
+		return pConfig->bHasPassword;
+	}
+	else if (CoreStrEqualN (Key.p, Key.n, "device_id"))
+	{
+		return CopyString (Value, CONFIG_DEVICE_ID_MAX, IsDeviceIDChar, pConfig->DeviceID);
+	}
+	else if (CoreStrEqualN (Key.p, Key.n, "topic_base"))
+	{
+		if (Value.n == 0 || Value.p[Value.n - 1] == '/')
+		{
+			return false;
+		}
+		return CopyString (Value, CONFIG_TOPIC_BASE_MAX, IsTopicChar, pConfig->TopicBase);
+	}
+	else if (CoreStrEqualN (Key.p, Key.n, "ir_frame_gap_ms"))
+	{
+		if (!ParseUnsigned (Value, CONFIG_MIN_GAP_MS, CONFIG_MAX_GAP_MS, &nValue))
+		{
+			return false;
+		}
+		pConfig->nIRFrameGapMs = nValue;
+		return true;
+	}
+	else if (CoreStrEqualN (Key.p, Key.n, "ota_password"))
+	{
+		if (Value.n < CONFIG_OTA_PASSWORD_MIN || Value.n > CONFIG_OTA_PASSWORD_MAX)
+		{
+			return false;
+		}
+		pConfig->bHasOTAPassword = CopyString (Value, CONFIG_OTA_PASSWORD_MAX,
+						       IsCredentialChar, pConfig->OTAPassword);
+		return pConfig->bHasOTAPassword;
+	}
+
+	return false;	// unknown key
 }
