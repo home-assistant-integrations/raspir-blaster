@@ -27,6 +27,7 @@
 #include "irreceiver.h"
 #include "irtransmitter.h"
 #include "irtxqueue.h"
+#include "logtee.h"
 #include "netselect.h"
 #include <circle/actled.h>
 #include <circle/bcmwatchdog.h>
@@ -77,7 +78,10 @@ private:
 	void RebootToWiFi (void);
 	boolean InitializeIR (void);
 
+	void StartUSBLog (void);
+
 	static boolean BoardHasEthernet (void);
+	static boolean BoardHasUSBDevice (void);
 
 	void FeedWatchdog (void);
 	void ProcessReceivedFrames (void);
@@ -95,6 +99,7 @@ private:
 	CKernelOptions		m_Options;
 	CDeviceNameService	m_DeviceNameService;
 	CSerialDevice		m_Serial;
+	CLogTee			m_LogTee;	// logger target: UART + USB serial
 	CExceptionHandler	m_ExceptionHandler;
 	CInterruptSystem	m_Interrupt;
 	CTimer			m_Timer;

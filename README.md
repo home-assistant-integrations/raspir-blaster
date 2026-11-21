@@ -93,6 +93,40 @@ resistor, 100 Ω LED resistor at 5 V). The firmware stays the same.
 A serial adapter on UART0 (header pins 8 = TX, 10 = RX, 115200 baud) shows the
 firmware log, including the detected board.
 
+### Reading the log over USB
+
+On most boards the log is also available over a single USB cable, without a
+serial adapter. The board then appears on the computer as a USB serial port
+(CDC ACM, no driver needed on macOS and Linux), and the same cable powers it.
+
+| Board            | Port to connect to the computer        |
+| ---------------- | -------------------------------------- |
+| Zero W, Zero 2 W | the micro-USB port marked "USB" (not "PWR IN") |
+| Pi 3 A+          | the USB-A port (USB-A to USB-A or USB-C cable) |
+| Pi 4 B           | the USB-C power port                   |
+
+On a Mac:
+
+```sh
+ls /dev/cu.usbmodem*                 # appears a few seconds after boot
+screen /dev/cu.usbmodem* 115200      # the baud rate is ignored over USB
+```
+
+Each time a terminal opens the port, it first shows the last 16 KB of log, so
+the boot log is visible even if you connect later; then it follows the live
+log. Without an open terminal nothing is sent and the device works as usual.
+If the terminal cannot keep up, a line `[log: <n> bytes lost]` marks the gap.
+The UART log is not affected.
+
+- Power the board **only** through this USB cable while logging over USB.
+  Circle warns that a second supply with a different voltage can damage the
+  board.
+- A Pi 4 B powered by a Mac's USB-C port has enough power without USB
+  peripherals; if it resets, use a powered USB hub.
+- Pi 3 B/B+ and CM4 only log on the UART: the Pi 3 B/B+ USB ports are host
+  ports (used for Ethernet), and on the CM4 `otg_mode=1` connects the USB 2
+  port to the host controller.
+
 ## Building
 
 Requirements: macOS on Apple Silicon, `make`, `git`, `curl`, and Xcode's
@@ -186,6 +220,11 @@ Every pull request with a user-visible change adds an entry under
 `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) (format:
 [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), categories
 `### Added`, `### Changed`, `### Fixed`, ...).
+
+Before the first release with the USB serial log: request an own USB product
+ID from [pid.codes](https://pid.codes) (vendor `0x1209`) and set
+`USB_LOG_PRODUCT_ID` in `src/fw/logtee.h`. Until then the firmware uses the
+pid.codes test ID `0x0001`, which must not be used in distributed devices.
 
 Maintainers start a release under **Actions → Release → Run workflow** on
 `main`. The workflow:

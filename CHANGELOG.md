@@ -21,6 +21,10 @@ the [README](README.md#releases).
   the firmware uses Ethernet if a cable has link within 5 s, otherwise Wi-Fi
   (Pi 4 B and CM4 reboot once to switch to Wi-Fi).
 - Support for the Compute Module 4 without wireless (Ethernet only).
+- Log over USB on the Zero W, Zero 2 W, Pi 3 A+ and Pi 4 B: with one USB
+  cable to a computer the log appears as a USB serial port (e.g.
+  `/dev/cu.usbmodem*` on a Mac). Opening the port first shows the last
+  16 KB of log, including the boot log. The UART log is unchanged.
 
 ### Changed
 

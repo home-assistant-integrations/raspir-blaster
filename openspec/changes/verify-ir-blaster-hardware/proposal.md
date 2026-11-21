@@ -14,6 +14,7 @@ The change `add-ir-blaster-firmware` is implemented and covered by host unit tes
   - carrier and timing measurement
   - end-to-end replay
 - Ethernet tests (interface selection by cable detection, marker reboot on Pi 4/CM4, operation and reconnect over Ethernet), moved from `add-ethernet-support` so that all hardware tests live in one change.
+- Log-over-USB tests (boot log replay, reopen, no terminal, USB identity, Pi 3 B without USB device), added by `add-usb-serial-log`.
 - No firmware behavior changes. Failures found by the tests are fixed in follow-up changes.
 
 ## Capabilities
@@ -43,6 +44,7 @@ _None._ The firmware capabilities (`connectivity`, `ir-receive`, `ir-transmit`, 
   - Logic analyzer or oscilloscope (≥ 10 MHz sample rate)
   - NEC, RC5 and air-conditioner remotes
   - A TV or other IR-controlled device
+  - For the USB log tests: a Mac, a micro-USB data cable (Zero W) and a USB-C cable (Pi 4 B)
   - For the Ethernet tests: a Pi 3 B or B+, a Pi 4 B or CM4 on a carrier board with an Ethernet jack, an Ethernet switch on the LAN, and a cable
 - **Firmware build:** uses the existing `make WATCHDOG_TEST=1` test image; no code changes.
 - **Boards:** the tests target the Raspberry Pi Zero W. The boards added by `add-multi-board-builds` (Zero 2 W, Pi 3, Pi 4 B, CM4 Lite, CM4 with eMMC) still need their own runs of groups 2–7 (see the note in `tasks.md`).
