@@ -38,6 +38,7 @@
 #define LED_DEGRADED_TOGGLE_MS	1000		// slow blink
 #define LED_FATAL_TOGGLE_MS	100		// fast blink
 #define LINK_POLL_MS		100		// Ethernet link check interval
+#define SETUP_TIMEOUT_MS	(30u * 60u * 1000u)	// close the setup-mode AP after this long idle
 
 static const char FromKernel[] = "kernel";
 
@@ -53,11 +54,16 @@ CKernel::CKernel (void)
 	m_USBHCI (&m_Interrupt, &m_Timer),
 #endif
 	m_pNet (0),
+	m_pMDNSPublisher (0),
+	m_pApiServer (0),
+	m_pDHCPTask (0),
 	m_pMQTT (0),
 	m_Receiver (&m_GPIOManager),
 	m_bWiFiConfig (FALSE),
 	m_bWiFiMarker (FALSE),
+	m_NetworkType (ApiNetworkWiFi),
 	m_State (StateRunning),
+	m_nSetupLastActivityMs (0),
 	m_bNetworkWasUp (FALSE),
 	m_nLostFramesLogged (0),
 	m_nLEDOffAtMs (0),
@@ -108,7 +114,10 @@ boolean CKernel::Initialize (void)
 
 	if (!bConfig)
 	{
-		m_State = StateDegraded;
+		if (!TryEnterSetupMode ())
+		{
+			m_State = StateDegraded;
+		}
 		return TRUE;
 	}
 
@@ -125,7 +134,10 @@ boolean CKernel::Initialize (void)
 	{
 		m_Logger.Write (FromKernel, LogError, "Wi-Fi configuration missing: %s",
 				WPA_CONFIG_FILE);
-		m_State = StateDegraded;
+		if (!TryEnterSetupMode ())
+		{
+			m_State = StateDegraded;
+		}
 		return TRUE;
 	}
 
@@ -367,6 +379,9 @@ boolean CKernel::CreateNetSubSystem (TNetDeviceType DeviceType)
 		return FALSE;
 	}
 
+	m_NetworkType = (DeviceType == NetDeviceTypeEthernet) ? ApiNetworkEthernet
+							       : ApiNetworkWiFi;
+
 	return TRUE;
 }
 
@@ -466,6 +481,148 @@ boolean CKernel::InitializeIR (void)
 	return TRUE;
 }
 
+// Enters setup mode (openspec/specs/web-update, "Setup mode"): open AP at
+// 192.168.4.1, DHCP, mDNS and the API server without a password. Returns
+// FALSE (stay degraded) if the board has no usable Wi-Fi chip.
+boolean CKernel::TryEnterSetupMode (void)
+{
+	if (!m_WLAN.Initialize ())
+	{
+		m_Logger.Write (FromKernel, LogWarning,
+				"Cannot initialize Wi-Fi: staying in degraded state");
+		return FALSE;
+	}
+
+	static const u8 ApIP[4]      = {192, 168, 4, 1};
+	static const u8 ApNetmask[4] = {255, 255, 255, 0};
+
+	m_pNet = new CNetSubSystem (ApIP, ApNetmask, 0, 0, m_Config.DeviceID, NetDeviceTypeWLAN);
+	if (m_pNet == 0 || !m_pNet->Initialize (FALSE))
+	{
+		m_Logger.Write (FromKernel, LogError, "Cannot initialize network for setup mode");
+		return FALSE;
+	}
+	m_NetworkType = ApiNetworkAccessPoint;
+
+	const CMACAddress *pMAC = m_WLAN.GetMACAddress ();
+	u8 MACBytes[MAC_ADDRESS_SIZE];
+	pMAC->CopyTo (MACBytes);
+
+	static const char HexDigits[] = "0123456789abcdef";
+	char SSID[32];
+	CTextWriter SW (SSID, sizeof SSID);
+	SW.Append ("raspir-blaster-");
+	SW.AppendChar (HexDigits[(MACBytes[4] >> 4) & 0xF]);
+	SW.AppendChar (HexDigits[MACBytes[4] & 0xF]);
+	SW.AppendChar (HexDigits[(MACBytes[5] >> 4) & 0xF]);
+	SW.AppendChar (HexDigits[MACBytes[5] & 0xF]);
+
+	if (!m_WLAN.CreateOpenNet (SSID, 6, false))
+	{
+		m_Logger.Write (FromKernel, LogError, "Cannot create open network %s", SSID);
+		return FALSE;
+	}
+
+	m_State = StateSetup;
+	m_nSetupLastActivityMs = NowMs ();
+
+	m_Logger.Write (FromKernel, LogNotice,
+			"Setup mode: access point %s at 192.168.4.1", SSID);
+
+	m_pDHCPTask = new CDHCPServerTask (m_pNet);
+
+	StartMDNS ();
+	m_pMQTT = 0;	// no MQTT in setup mode
+	StartApiServer ();
+
+	return TRUE;
+}
+
+void CKernel::LeaveSetupMode (void)
+{
+	if (m_pDHCPTask != 0)
+	{
+		m_pDHCPTask->RequestStop ();
+		m_pDHCPTask->WaitForTermination ();
+		delete m_pDHCPTask;
+		m_pDHCPTask = 0;
+	}
+
+	m_WLAN.DestroyOpenNet ();
+	m_State = StateDegraded;
+
+	m_Logger.Write (FromKernel, LogNotice,
+			"Setup mode timed out, access point closed");
+}
+
+void CKernel::StartMDNS (void)
+{
+	// CmDNSDaemon is a singleton task; calling Get() creates it if not running.
+	// IsRunning() is not checked here: the task has not had a chance to run yet;
+	// the .local name is logged later once the daemon has initialised.
+	CmDNSDaemon::Get ();
+
+	// Service name: "raspir-blaster (<device_id>)"
+	char ServiceName[64];
+	CTextWriter SN (ServiceName, sizeof ServiceName);
+	SN.Append ("raspir-blaster (");
+	SN.Append (m_Config.DeviceID);
+	SN.AppendChar (')');
+
+	char VersionTxt[48];
+	CTextWriter VT (VersionTxt, sizeof VersionTxt);
+	VT.Append ("version=");
+	VT.Append (RASPIR_FIRMWARE_VERSION);
+
+	char BoardTxt[48];
+	CTextWriter BT (BoardTxt, sizeof BoardTxt);
+	BT.Append ("board=");
+	BT.Append (m_Model);
+
+	const char *pModeTxt = (m_State == StateSetup) ? "mode=setup" : "mode=normal";
+	const char *ppText[] = {VersionTxt, BoardTxt, pModeTxt, "api=/api/", 0};
+
+	m_pMDNSPublisher = new CmDNSPublisher (m_pNet);
+	if (m_pMDNSPublisher == 0)
+	{
+		m_Logger.Write (FromKernel, LogWarning, "Cannot create mDNS publisher");
+		return;
+	}
+
+	if (!m_pMDNSPublisher->PublishService (ServiceName, "_http._tcp", 80, ppText))
+	{
+		m_Logger.Write (FromKernel, LogWarning, "Cannot publish mDNS service");
+		return;
+	}
+
+	m_Logger.Write (FromKernel, LogNotice, "mDNS: %s.local (_http._tcp :80)",
+			m_Config.DeviceID);
+}
+
+void CKernel::StartApiServer (void)
+{
+	m_ApiContext.pConfig     = &m_Config;
+	m_ApiContext.pNet        = m_pNet;
+	m_ApiContext.pMQTT       = m_pMQTT;
+	m_ApiContext.pTimer      = &m_Timer;
+	m_ApiContext.pUpdater    = &m_Updater;
+	m_ApiContext.pBoardModel = m_Model;
+#ifdef USE_EMBEDDED_MMC_CM
+	m_ApiContext.pBuild      = "cm4-emmc";
+#else
+	m_ApiContext.pBuild      = "sdcard";
+#endif
+	m_ApiContext.bSetupMode  = (m_State == StateSetup);
+	m_ApiContext.Network     = m_NetworkType;
+	m_ApiContext.pLastActivityMs = (m_State == StateSetup) ? &m_nSetupLastActivityMs : 0;
+
+	m_pApiServer = new CApiServer (m_pNet, &m_ApiContext);
+	if (m_pApiServer == 0)
+	{
+		m_Logger.Write (FromKernel, LogWarning, "Cannot start API server");
+	}
+}
+
 void CKernel::Run (void)
 {
 	if (m_State == StateFatal)
@@ -488,16 +645,17 @@ void CKernel::Run (void)
 	if (m_State == StateDegraded)
 	{
 		m_Logger.Write (FromKernel, LogError, "Degraded mode: fix the configuration on the SD card");
-		for (;;)
-		{
-			FeedWatchdog ();
-			m_LogTee.Process ();
-			UpdateLED ();
-			m_Scheduler.MsSleep (50);
-		}
+		RunDegradedLoop ();
 	}
 
+	if (m_State == StateSetup)
+	{
+		RunSetupLoop ();	// falls through to RunDegradedLoop() on timeout
+	}
+
+	StartMDNS ();
 	m_pMQTT = new CIRMqttClient (m_pNet, &m_Config, &m_TxQueue, m_Model);
+	StartApiServer ();
 
 	for (;;)
 	{
@@ -520,6 +678,13 @@ void CKernel::Run (void)
 		m_LogTee.Process ();
 		UpdateLED ();
 
+		if (m_Updater.IsRebootPending () && NowMs () >= m_Updater.GetRebootAtMs ())
+		{
+			m_Logger.Write (FromKernel, LogNotice, "Rebooting for firmware update");
+			m_Scheduler.MsSleep (100);	// let the serial/USB log drain
+			m_Watchdog.Restart ();
+		}
+
 		m_Scheduler.MsSleep (MAIN_LOOP_SLEEP_MS);
 	}
 }
@@ -528,6 +693,35 @@ void CKernel::FeedWatchdog (void)
 {
 	// Restarting the watchdog reloads its counter.
 	m_Watchdog.Start (WATCHDOG_TIMEOUT_S);
+}
+
+void CKernel::RunDegradedLoop (void)
+{
+	for (;;)
+	{
+		FeedWatchdog ();
+		m_LogTee.Process ();
+		UpdateLED ();
+		m_Scheduler.MsSleep (50);
+	}
+}
+
+void CKernel::RunSetupLoop (void)
+{
+	for (;;)
+	{
+		FeedWatchdog ();
+		m_LogTee.Process ();
+		UpdateLED ();
+
+		if (NowMs () - m_nSetupLastActivityMs > SETUP_TIMEOUT_MS)
+		{
+			LeaveSetupMode ();
+			RunDegradedLoop ();	// never returns
+		}
+
+		m_Scheduler.MsSleep (50);
+	}
 }
 
 void CKernel::ProcessReceivedFrames (void)
@@ -656,7 +850,7 @@ void CKernel::UpdateLED (void)
 			m_ActLED.Off ();
 		}
 
-		m_nLEDToggleAtMs = nNow + (m_State == StateDegraded ? LED_DEGRADED_TOGGLE_MS
-								    : LED_FATAL_TOGGLE_MS);
+		m_nLEDToggleAtMs = nNow + (m_State == StateFatal ? LED_FATAL_TOGGLE_MS
+								  : LED_DEGRADED_TOGGLE_MS);
 	}
 }

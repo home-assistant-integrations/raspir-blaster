@@ -196,12 +196,20 @@ If it does not appear, the ACT LED tells you why:
 | ACT LED | Meaning |
 | --- | --- |
 | short flash on IR activity, otherwise off | running |
-| slow blink (1 s on, 1 s off) | configuration missing or invalid: check the two files |
+| slow blink (1 s on, 1 s off) | configuration missing/invalid, or setup mode (see below) |
 | fast blink | hardware or driver error; the device reboots after 10 s |
 
 The log names the problem: over USB on the Zero W, Zero 2 W, Pi 3 A+ and
 Pi 4 B (see [Reading the log over USB](#reading-the-log-over-usb)), or with a
 serial adapter on UART0 on every board.
+
+**Setup mode.** Instead of editing the two files by hand, boards with a
+Wi-Fi chip can be configured over the air: boot the card with
+`raspir-blaster.conf.example` left unrenamed (or missing), and the device
+opens an open Wi-Fi access point and a configuration API for 30 minutes —
+see [Setup mode](docs/api.md#setup-mode) in the API docs. A CM4 without
+wireless has no setup mode and stays in the slow-blink state until
+`raspir-blaster.conf` is added by hand.
 
 ### Compute Module 4 with eMMC
 
@@ -217,9 +225,24 @@ A CM4 with eMMC boots from its eMMC instead of an SD card:
 
 ### Updating
 
-Copy the contents of the new zip over the old files on the card, but keep
-your `raspir-blaster.conf` and `wpa_supplicant.conf` (the zip only contains
-the `.example` files, so they are not overwritten).
+**Over the API** (needs `ota_password` set in `raspir-blaster.conf`): upload
+the release zip for your board directly to the running device — see
+[`docs/api.md`](docs/api.md) for the full `POST /api/update` request and
+response. The device validates the zip, installs the new kernel image and
+reboots on its own, keeping the previous image as `<image>.bak` on the card.
+
+```sh
+curl --form-string password=<ota_password> -F file=@raspir-blaster-<version>-sdcard.zip \
+     http://<device-ip-or-hostname>/api/update
+```
+
+**Manually:** copy the contents of the new zip over the old files on the
+card, but keep your `raspir-blaster.conf` and `wpa_supplicant.conf` (the zip
+only contains the `.example` files, so they are not overwritten).
+
+If a new kernel does not start, rename `<image>.bak` back to `<image>` on
+the card in a computer to restore the previous firmware (either update
+path keeps this backup).
 
 ### Building the card yourself
 
@@ -358,13 +381,21 @@ One `key=value` per line, `#` starts a comment.
 | `mqtt_port`       | no       | `1883`            | 1–65535                                     |
 | `mqtt_user`       | no       | anonymous         | max 63 chars                                |
 | `mqtt_password`   | no       |                   | max 63 chars, only used with `mqtt_user`    |
-| `device_id`       | no       | `pi_zero_ir`      | 1–31 chars of `a-z`, `0-9`, `_`             |
+| `device_id`       | no       | `pi-zero-ir`      | 1–31 chars of `a-z`, `0-9`, `-`             |
 | `topic_base`      | no       | `home/ir_blaster` | 1–63 chars, no `+`, `#` or trailing `/`     |
 | `ir_frame_gap_ms` | no       | `15`              | 5–60                                        |
+| `ota_password`    | no       | unset (updates disabled) | 8–63 chars                           |
 
-`device_id` is the MQTT client ID, the DHCP host name and the Home Assistant
-device identifier. Give every blaster on the same broker its own `device_id`
-and `topic_base`.
+`device_id` is the MQTT client ID, the DHCP host name, the mDNS name and the
+Home Assistant device identifier — used as-is everywhere, which is why it
+may not contain `_` (not a valid host name character). Give every blaster
+on the same broker its own `device_id` and `topic_base`.
+
+`ota_password` enables the firmware update API (see
+[Updating](#updating) and [`docs/api.md`](docs/api.md)); without it,
+`POST /api/update`, `POST /api/update/confirm` and `POST /api/restart`
+are refused. It is never shown in logs or API responses, only whether it
+is set.
 
 `ir_frame_gap_ms` is the silence that ends a received frame. Increase it if
 the remote of an air conditioner sends its frame in several parts and they

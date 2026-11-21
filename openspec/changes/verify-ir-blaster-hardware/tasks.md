@@ -57,8 +57,24 @@ Added by `add-usb-serial-log`. Power each board only through the USB cable to th
 - [ ] 9.4 System Information shows "raspir-blaster (<device_id>)", vendor `0x1209`
 - [ ] 9.5 Pi 3 B or B+: no USB serial device, no USB warning in the UART log, Ethernet unaffected
 
-## 10. Wrap-up
+## 10. Web update and setup mode (needs a board with a Wi-Fi chip, an iPhone and an Android phone)
 
-- [ ] 10.1 Complete the report entry (all tests with pass/fail/not run, measured values, environment notes) and reference a follow-up change for every failure
+Added by `add-web-update`. Boot without `raspir-blaster.conf` (or with `wpa_supplicant.conf` missing on a Wi-Fi-only board) for the setup-mode tasks; restore a working configuration for the update tasks.
+
+- [ ] 10.1 iPhone: the open network `raspir-blaster-<xxxx>` is visible and joins without a captive-portal prompt hanging; it gets an address from 192.168.4.10–50
+- [ ] 10.2 Android phone: same as 10.1, joined at the same time as the iPhone (two leases, no conflict)
+- [ ] 10.3 From a phone, `GET /api/status` shows `"mode":"setup"`; `GET /api/config` then `POST /api/config` with a broker and the home Wi-Fi network, then `POST /api/restart`: the device joins the home network and connects to MQTT
+- [ ] 10.4 Setup timeout: leave the access point idle for 30 minutes (no API request); it disappears and the device stays in the degraded state until power-cycled
+- [ ] 10.5 `POST /api/update` with a zip of a newer version and the correct `ota_password`: `"result":"installed"`, device reboots on the new version (check `GET /api/status`)
+- [ ] 10.6 `POST /api/update` with a zip of the same version: `"result":"confirm_required"` with `"reason":"same"` and a token; `POST /api/update/confirm` with that token installs it
+- [ ] 10.7 `POST /api/update` with a zip built for the other boot target (sdcard vs. cm4-emmc): refused, nothing changes
+- [ ] 10.8 `POST /api/update` with a release zip with one changed byte in the kernel image: refused on the checksum, nothing changes
+- [ ] 10.9 `POST /api/update` with a wrong `ota_password`: refused after a ~1 s delay, log shows the refusal without the password value
+- [ ] 10.10 After a successful update (10.5), rename `<image>.bak` back to `<image>` on the card in a computer and confirm the device boots the previous version again
+- [ ] 10.11 `dns-sd -B _http._tcp local` (or `avahi-browse`) shows `raspir-blaster (<device_id>)`; `ping <hostname>.local` resolves, in both normal and setup mode
+
+## 11. Wrap-up
+
+- [ ] 11.1 Complete the report entry (all tests with pass/fail/not run, measured values, environment notes) and reference a follow-up change for every failure
 
 > **Board coverage.** These tasks were written for the Raspberry Pi Zero W (`rpi0w` target, `kernel.img`). Since `add-multi-board-builds`, the firmware also builds for the Zero 2 W and Pi 3 (`rpi3`), Pi 4 B and CM4 Lite (`rpi4`) and CM4 with eMMC (`rpi4-emmc`). None of these boards has a verification run yet. Record the board in every report entry. For each further board, repeat groups 2–7, and group 8 on the boards with Ethernet (for CM4 with eMMC, prepare `build/cm4-emmc/` instead of the SD card in 1.2), and check the boot log's "Board: …" line and the Home Assistant device model.

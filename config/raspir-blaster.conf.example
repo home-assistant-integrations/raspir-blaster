@@ -32,10 +32,10 @@ mqtt_port=1883
 #mqtt_user=mqtt_user
 #mqtt_password=mqtt_password
 
-# Device identifier (optional, 1-31 characters of a-z, 0-9 and _,
-# default pi_zero_ir). Used as MQTT client id, DHCP host name and for
+# Device identifier (optional, 1-31 characters of a-z, 0-9 and -,
+# default pi-zero-ir). Used as MQTT client id, DHCP/mDNS host name and for
 # Home Assistant discovery. Must be unique per broker.
-#device_id=pi_zero_ir
+#device_id=pi-zero-ir
 
 # Base MQTT topic (optional, 1-63 characters, no "+", "#" or trailing "/",
 # default home/ir_blaster). Topics used: <topic_base>/send,

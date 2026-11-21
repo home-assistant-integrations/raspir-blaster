@@ -33,11 +33,14 @@
 #define CONFIG_TOPIC_BASE_MAX	63
 
 #define CONFIG_DEFAULT_PORT		1883
-#define CONFIG_DEFAULT_DEVICE_ID	"pi_zero_ir"
+#define CONFIG_DEFAULT_DEVICE_ID	"pi-zero-ir"
 #define CONFIG_DEFAULT_TOPIC_BASE	"home/ir_blaster"
 #define CONFIG_DEFAULT_GAP_MS		15
 #define CONFIG_MIN_GAP_MS		5
 #define CONFIG_MAX_GAP_MS		60
+
+#define CONFIG_OTA_PASSWORD_MAX		63
+#define CONFIG_OTA_PASSWORD_MIN		8
 
 /// Effective device configuration (see specs/device-config).
 struct TConfig
@@ -51,6 +54,8 @@ struct TConfig
 	char     DeviceID[CONFIG_DEVICE_ID_MAX + 1];
 	char     TopicBase[CONFIG_TOPIC_BASE_MAX + 1];
 	unsigned nIRFrameGapMs;
+	bool     bHasOTAPassword;
+	char     OTAPassword[CONFIG_OTA_PASSWORD_MAX + 1];
 };
 
 /// Receives warnings and errors found while parsing (never contains passwords).
@@ -69,5 +74,12 @@ bool ConfigParse (const char *pText, size_t nLength, TConfig *pConfig,
 /// Writes the effective configuration as one line for logging, with the
 /// password masked as "***" (omitted if not set).
 void ConfigDump (const TConfig &Config, char *pBuffer, size_t nSize);
+
+/// Validates and applies one key/value pair with the same rules as
+/// ConfigParse(), but strictly: on an invalid or unrecognized key it
+/// leaves *pConfig untouched and returns false, instead of falling back
+/// to a default. For POST /api/config, where the whole request must be
+/// refused (not partially applied) if any field is invalid.
+bool ConfigValidateField (const char *pKey, const char *pValue, TConfig *pConfig);
 
 #endif

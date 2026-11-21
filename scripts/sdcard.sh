@@ -81,6 +81,14 @@ done < <(firmware_entries)
 
 # --- Assemble ---------------------------------------------------------------
 
+# Firmware version from the generated header (always present after 'make firmware').
+VERSION_HEADER="$ROOT_DIR/build/generated/firmware_version.h"
+[[ -f "$VERSION_HEADER" ]] \
+    || fail "firmware_version.h not found - run 'make' first"
+FIRMWARE_VERSION="$(sed -n 's/.*RASPIR_FIRMWARE_VERSION "\(.*\)".*/\1/p' "$VERSION_HEADER")"
+[[ -n "$FIRMWARE_VERSION" ]] \
+    || fail "could not parse version from $VERSION_HEADER"
+
 # assemble <output name> <directory> <config.txt source> <images>
 assemble() {
     local name="$1" dir="$2" config="$3" images="$4"
@@ -104,6 +112,20 @@ assemble() {
     cp "$config" "$dir/config.txt"
     cp "$ROOT_DIR/config/raspir-blaster.conf.example" "$dir/"
     cp "$ROOT_DIR/config/wpa_supplicant.conf.example" "$dir/"
+
+    # Write the manifest for firmware update validation.
+    local manifest="$dir/raspir-blaster-manifest.txt"
+    {
+        printf 'version=%s\n' "$FIRMWARE_VERSION"
+        printf 'build=%s\n' "$name"
+        for entry in $images; do
+            local image="${entry#*:}"
+            local hash
+            hash="$(shasum -a 256 "$dir/$image" | awk '{print $1}')"
+            printf 'sha256.%s=%s\n' "$image" "$hash"
+        done
+    } > "$manifest"
+    log "wrote ${manifest#$ROOT_DIR/}"
 }
 
 assemble sdcard   "$SDCARD_DIR" "$ROOT_DIR/config/config.txt"           "$SDCARD_IMAGES"

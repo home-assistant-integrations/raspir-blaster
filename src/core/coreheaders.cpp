@@ -25,13 +25,23 @@
 
 #include "backoff.h"	// IWYU pragma: keep
 #include "config.h"	// IWYU pragma: keep
+#include "constanttime.h"	// IWYU pragma: keep
 #include "discovery.h"	// IWYU pragma: keep
+#include "configwriter.h"	// IWYU pragma: keep
+#include "dhcpserver.h"	// IWYU pragma: keep
+#include "formdata.h"	// IWYU pragma: keep
+#include "inflate.h"	// IWYU pragma: keep
 #include "ircarrier.h"	// IWYU pragma: keep
+#include "zipreader.h"	// IWYU pragma: keep
 #include "irframeassembler.h"	// IWYU pragma: keep
 #include "irmessage.h"	// IWYU pragma: keep
 #include "irtxqueue.h"	// IWYU pragma: keep
 #include "jsontokenizer.h"	// IWYU pragma: keep
+#include "jsonwriter.h"	// IWYU pragma: keep
 #include "logring.h"	// IWYU pragma: keep
+#include "manifest.h"	// IWYU pragma: keep
 #include "netselect.h"	// IWYU pragma: keep
+#include "sha256.h"	// IWYU pragma: keep
 #include "textwriter.h"	// IWYU pragma: keep
 #include "version.h"	// IWYU pragma: keep
+#include "wpareader.h"	// IWYU pragma: keep
