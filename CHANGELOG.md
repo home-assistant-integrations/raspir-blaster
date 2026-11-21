@@ -9,6 +9,8 @@ the [README](README.md#releases).
 
 ## [Unreleased]
 
+## [2026.11.2] - 2026-11-21
+
 ### Added
 
 - Ethernet on the Raspberry Pi 3 B/B+, Pi 4 B and Compute Module 4. At boot
@@ -83,6 +85,7 @@ verified on hardware yet.
 - GitHub Actions: CI builds and tests every pushed commit, and a manual
   release workflow publishes versioned releases.
 
-[unreleased]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.1...HEAD
+[unreleased]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.2...HEAD
+[2026.11.2]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.1...2026.11.2
 [2026.11.1]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.0...2026.11.1
 [2026.11.0]: https://github.com/home-assistant-integrations/raspir-blaster/releases/tag/2026.11.0
