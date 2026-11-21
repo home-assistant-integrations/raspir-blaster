@@ -20,21 +20,50 @@ see [Releases](#releases). To build the firmware yourself, see [Building](#build
 
 ## Supported boards
 
-| Board                      | Image              | Boot media | Status                     |
-| -------------------------- | ------------------ | ---------- | -------------------------- |
-| Raspberry Pi Zero W        | `kernel.img`       | SD card    | built, not yet verified    |
-| Raspberry Pi Zero 2 W      | `kernel8.img`      | SD card    | built, not yet verified    |
-| Raspberry Pi 3 B / B+ / A+ | `kernel8.img`      | SD card    | built, not yet verified    |
-| Raspberry Pi 4 B           | `kernel8-rpi4.img` | SD card    | built, not yet verified    |
-| Compute Module 4 Lite      | `kernel8-rpi4.img` | SD card    | built, not yet verified    |
-| Compute Module 4 with eMMC | `kernel8-rpi4.img` | eMMC       | built, not yet verified    |
+| Board                             | Image              | Boot media     | Network         | Status                  |
+| --------------------------------- | ------------------ | -------------- | --------------- | ----------------------- |
+| Raspberry Pi Zero W               | `kernel.img`       | SD card        | Wi-Fi           | built, not yet verified |
+| Raspberry Pi Zero 2 W             | `kernel8.img`      | SD card        | Wi-Fi           | built, not yet verified |
+| Raspberry Pi 3 A+                 | `kernel8.img`      | SD card        | Wi-Fi           | built, not yet verified |
+| Raspberry Pi 3 B / B+             | `kernel8.img`      | SD card        | Ethernet, Wi-Fi | built, not yet verified |
+| Raspberry Pi 4 B                  | `kernel8-rpi4.img` | SD card        | Ethernet, Wi-Fi | built, not yet verified |
+| Compute Module 4 Lite             | `kernel8-rpi4.img` | SD card        | Ethernet, Wi-Fi | built, not yet verified |
+| Compute Module 4 with eMMC        | `kernel8-rpi4.img` | eMMC           | Ethernet, Wi-Fi | built, not yet verified |
+| Compute Module 4 without wireless | `kernel8-rpi4.img` | SD card / eMMC | Ethernet        | built, not yet verified |
 
 "Verified" means the hardware tests of the OpenSpec change
-`verify-ir-blaster-hardware` passed on that board.
+`verify-ir-blaster-hardware` passed on that board. On a CM4, Ethernet needs a
+carrier board with an Ethernet jack.
 
 Not supported: Raspberry Pi 5, Compute Module 5, Pi 400, Pi 1, Pi 2, Pi Zero
-(without W), CM3/CM3+, and CM4 modules without wireless. The firmware needs
-on-board Wi-Fi, and the Pi 5's RP1 I/O chip needs different drivers.
+(without W), and CM3/CM3+. The Pi 5's RP1 I/O chip needs different drivers.
+
+### Ethernet or Wi-Fi
+
+The firmware uses one network interface per boot and chooses it at power-up:
+
+- **Boards without Ethernet** (Zero W, Zero 2 W, 3 A+) always use Wi-Fi and
+  need `wpa_supplicant.conf`.
+- **Boards with Ethernet and without `wpa_supplicant.conf`** always use
+  Ethernet. They wait for a cable if none is connected.
+- **Boards with Ethernet and `wpa_supplicant.conf`** use Ethernet if the link
+  comes up within 5 s, otherwise Wi-Fi:
+  - Pi 3 B/B+ decide during the boot, without a reboot.
+  - Pi 4 B and CM4 can only check the link by starting the network on
+    Ethernet. Without a link they create the file `raspir-blaster.wifi` on the
+    card and reboot once; the next boot deletes the file and uses Wi-Fi. The
+    boot after that tries Ethernet again.
+
+Plugging in or pulling the cable later takes effect at the next boot. The two
+interfaces have different MAC addresses, so your DHCP server may give the
+device a different IP address on each; only the broker address matters to the
+firmware. The serial log names the chosen interface, e.g.
+`Network: Ethernet (link up, 1000BASE-T Full-duplex)` or
+`Network: Wi-Fi (no Ethernet link)`.
+
+A CM4 without wireless that has a `wpa_supplicant.conf` and no cable keeps
+rebooting (the Wi-Fi attempt fails); every second boot tries Ethernet again, so
+connecting the cable or deleting `wpa_supplicant.conf` ends this.
 
 ## Hardware
 
@@ -108,8 +137,10 @@ later builds only recompile the firmware.
 
 1. Format a micro SD card with a single FAT32 partition.
 2. Run `make sdcard` and copy the **contents** of `build/sdcard/` to the card.
-3. On the card, rename `wpa_supplicant.conf.example` to `wpa_supplicant.conf`
-   and enter your Wi-Fi SSID and password.
+3. For Wi-Fi: on the card, rename `wpa_supplicant.conf.example` to
+   `wpa_supplicant.conf` and enter your Wi-Fi SSID and password. On a board
+   that you only connect by Ethernet, skip this step (see
+   [Ethernet or Wi-Fi](#ethernet-or-wi-fi)).
 4. On the card, rename `raspir-blaster.conf.example` to `raspir-blaster.conf`
    and set at least `mqtt_host`.
 5. Insert the card and power the Pi.

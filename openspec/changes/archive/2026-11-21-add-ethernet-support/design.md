@@ -57,7 +57,7 @@ One line before network bring-up: `Network: Ethernet (link up, <speed>)`, `Netwo
 
 ## Risks / Trade-offs
 
-- [No hardware or emulator for Ethernet here; QEMU has no GENET and no LAN95xx] → logic in `src/core` with tests; firmware builds for all targets; hardware tests listed as their own task group, to be run on a Pi 3 B/B+ and a Pi 4/CM4.
+- [No hardware or emulator for Ethernet here; QEMU has no GENET and no LAN95xx] → logic in `src/core` with tests; firmware builds for all targets; hardware tests in the change `verify-ir-blaster-hardware` (group 8), to be run on a Pi 3 B/B+ and a Pi 4/CM4.
 - [5 s may be too short for some switches (e.g. STP ports take 30 s to forward, but link is up earlier; PHY link usually comes in 2–3 s)] → only the PHY link is checked, not traffic; constant `ETHERNET_LINK_TIMEOUT_MS` in one place.
 - [Reboot cycle on a CM4 without wireless that has `wpa_supplicant.conf` and no cable: marker reboot → Wi-Fi fails → fatal → watchdog reboot → …] → every second boot retries Ethernet, so plugging in a cable recovers; documented in README; same pattern as today's fatal state.
 - [SD card writes: one create + one delete per boot pair without cable on Pi 4/CM4] → negligible wear; power loss between create and reboot leaves a marker, which only causes one Wi-Fi boot.

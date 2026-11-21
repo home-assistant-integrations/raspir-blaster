@@ -37,8 +37,18 @@
 - [ ] 7.1 Capture the TV power code, put its `raw` into a Home Assistant MQTT button, press the button, and check that the TV reacts
 - [ ] 7.2 Point the receiver at the IR LED, transmit a frame, and check in `mosquitto_sub` that nothing is published to `received` because of it
 
-## 8. Wrap-up
+## 8. Ethernet (needs a Pi 3 B or B+ and a Pi 4 B or CM4)
 
-- [ ] 8.1 Complete the report entry (all tests with pass/fail/not run, measured values, environment notes) and reference a follow-up change for every failure
+Moved from `add-ethernet-support` (its group 5). Use a card with `raspir-blaster.conf` and, unless stated otherwise, `wpa_supplicant.conf`; connect the board to a switch on the LAN with DHCP and the broker. QEMU pre-check results are in `add-ethernet-support/tasks.md`.
 
-> **Board coverage.** These tasks were written for the Raspberry Pi Zero W (`rpi0w` target, `kernel.img`). Since `add-multi-board-builds`, the firmware also builds for the Zero 2 W and Pi 3 (`rpi3`), Pi 4 B and CM4 Lite (`rpi4`) and CM4 with eMMC (`rpi4-emmc`). None of these boards has a verification run yet. Record the board in every report entry. For each further board, repeat groups 2–7 (for CM4 with eMMC, prepare `build/cm4-emmc/` instead of the SD card in 1.2), and check the boot log's "Board: …" line and the Home Assistant device model.
+- [ ] 8.1 Pi 4 B with cable and `wpa_supplicant.conf`: Ethernet, link speed logged, MQTT connected, IR send/receive work
+- [ ] 8.2 Pi 4 B without cable: marker reboot, Wi-Fi, marker deleted; power-cycle with cable: Ethernet again
+- [ ] 8.3 Pi 3 B or B+ with and without cable: Ethernet / Wi-Fi after ≤ 5 s, no reboot
+- [ ] 8.4 Ethernet board without `wpa_supplicant.conf` and without cable: not degraded; plugging in the cable brings MQTT up
+- [ ] 8.5 Pull and re-plug the cable at runtime: MQTT reconnects with backoff, no reboot
+
+## 9. Wrap-up
+
+- [ ] 9.1 Complete the report entry (all tests with pass/fail/not run, measured values, environment notes) and reference a follow-up change for every failure
+
+> **Board coverage.** These tasks were written for the Raspberry Pi Zero W (`rpi0w` target, `kernel.img`). Since `add-multi-board-builds`, the firmware also builds for the Zero 2 W and Pi 3 (`rpi3`), Pi 4 B and CM4 Lite (`rpi4`) and CM4 with eMMC (`rpi4-emmc`). None of these boards has a verification run yet. Record the board in every report entry. For each further board, repeat groups 2–7, and group 8 on the boards with Ethernet (for CM4 with eMMC, prepare `build/cm4-emmc/` instead of the SD card in 1.2), and check the boot log's "Board: …" line and the Home Assistant device model.

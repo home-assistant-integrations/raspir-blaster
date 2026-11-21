@@ -27,6 +27,7 @@
 #include "irreceiver.h"
 #include "irtransmitter.h"
 #include "irtxqueue.h"
+#include "netselect.h"
 #include <circle/actled.h>
 #include <circle/bcmwatchdog.h>
 #include <circle/devicenameservice.h>
@@ -40,6 +41,9 @@
 #include <circle/serial.h>
 #include <circle/timer.h>
 #include <circle/types.h>
+#if RASPPI == 3
+#include <circle/usb/usbhcidevice.h>	// Ethernet of the Pi 3 B/B+ is a USB chip
+#endif
 #include <SDCard/emmc.h>
 #include <fatfs/ff.h>
 #include <wlan/bcm4343.h>
@@ -65,7 +69,15 @@ private:
 	boolean InitializeStorage (void);
 	boolean LoadConfig (void);
 	boolean InitializeNetwork (void);
+	boolean InitializeWiFi (void);
+	boolean InitializeEthernet (boolean bCheckLink);
+	boolean StartUSB (void);
+	boolean CreateNetSubSystem (TNetDeviceType DeviceType);
+	boolean WaitForEthernetLink (void);
+	void RebootToWiFi (void);
 	boolean InitializeIR (void);
+
+	static boolean BoardHasEthernet (void);
 
 	void FeedWatchdog (void);
 	void ProcessReceivedFrames (void);
@@ -94,6 +106,9 @@ private:
 	CBcm4343Device		m_WLAN;
 	CWPASupplicant		m_WPASupplicant;
 	CGPIOManager		m_GPIOManager;
+#if RASPPI == 3
+	CUSBHCIDevice		m_USBHCI;	// only initialized for Ethernet
+#endif
 
 	CNetSubSystem		*m_pNet;	// created after the config (host name)
 	CIRMqttClient		*m_pMQTT;
@@ -102,6 +117,9 @@ private:
 	CIRTxQueue		m_TxQueue;
 
 	TConfig			m_Config;
+	boolean			m_bWiFiConfig;	// wpa_supplicant.conf exists
+	boolean			m_bWiFiMarker;	// marker file of the previous boot exists
+	TNetSelection		m_NetSelection;
 	char			m_Model[96];	// "<board name> (Circle bare-metal)"
 	TIRFrame		m_Frame;	// scratch frame for the main loop
 	TState			m_State;

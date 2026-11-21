@@ -84,3 +84,26 @@ A code captured by the device SHALL control the original device when replayed fr
 #### Scenario: No self-capture
 - **WHEN** the device transmits while its receiver faces the IR LED
 - **THEN** no message is published to `<topic_base>/received` as a result of the transmission
+
+### Requirement: Ethernet selection and operation
+On boards with Ethernet, the firmware SHALL choose the network interface at boot as specified in connectivity ("Network interface selection"), and SHALL work over Ethernet like over Wi-Fi. These tests run on a Pi 3 B or B+ and on a Pi 4 B or CM4 (on a carrier board with an Ethernet jack), connected to a switch on the LAN with a DHCP server and the MQTT broker.
+
+#### Scenario: Pi 4 with cable
+- **WHEN** a Pi 4 B (or CM4) with `wpa_supplicant.conf` boots with an Ethernet cable connected to an active switch
+- **THEN** the serial log shows "Network: Ethernet (link up, …)" with the link speed and no Wi-Fi initialization, "Network up, IP address …" and "Connected to broker" within 30 s, and IR send and receive work as in the other tests
+
+#### Scenario: Pi 4 without cable
+- **WHEN** a Pi 4 B (or CM4) with `wpa_supplicant.conf` boots without an Ethernet cable
+- **THEN** the log shows "No Ethernet link, rebooting to use Wi-Fi" after at most 5 s of link checking, the device reboots once, the second boot logs "Network: Wi-Fi (after Ethernet check)" and connects to the broker, and `raspir-blaster.wifi` is no longer on the card; after a power cycle with the cable connected it uses Ethernet again
+
+#### Scenario: Pi 3 with and without cable
+- **WHEN** a Pi 3 B or B+ with `wpa_supplicant.conf` boots once with and once without an Ethernet cable
+- **THEN** with cable it logs "Network: Ethernet (link up, …)"; without cable it logs "Network: Wi-Fi (no Ethernet link)" at most 5 s after USB enumeration, without a reboot; in both cases it connects to the broker
+
+#### Scenario: No Wi-Fi configuration
+- **WHEN** a board with Ethernet without `wpa_supplicant.conf` boots without a cable, and the cable is connected 2 minutes later
+- **THEN** it logs "Network: Ethernet (no SD:/wpa_supplicant.conf)", does not enter the degraded state and does not reboot, and after the cable is connected it obtains an IP address and connects to the broker
+
+#### Scenario: Cable pulled at runtime
+- **WHEN** the device runs on Ethernet and the cable is pulled for 2 minutes and plugged in again
+- **THEN** the device stays on Ethernet without a reboot, the log shows the MQTT disconnect and retries with backoff, and after the cable is back it reconnects and Home Assistant shows the sensor as available again

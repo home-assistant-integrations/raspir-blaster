@@ -13,6 +13,7 @@ The change `add-ir-blaster-firmware` is implemented and covered by host unit tes
   - capture with real remotes
   - carrier and timing measurement
   - end-to-end replay
+- Ethernet tests (interface selection by cable detection, marker reboot on Pi 4/CM4, operation and reconnect over Ethernet), moved from `add-ethernet-support` so that all hardware tests live in one change.
 - No firmware behavior changes. Failures found by the tests are fixed in follow-up changes.
 
 ## Capabilities
@@ -29,12 +30,12 @@ _None._ The firmware capabilities (`connectivity`, `ir-receive`, `ir-transmit`, 
 - **Fixing defects.** Defects found here are recorded and handled in separate changes.
 - **Range and power measurements** of the IR LED stage, and testing the optional transistor driver.
 - **Long-term soak tests** (days of uptime, memory leaks).
-- **Boards other than the Pi Zero W.**
+- **Boards other than the Pi Zero W**, except the Ethernet tests, which need a Pi 3 B/B+ and a Pi 4 B or CM4.
 
 ## Impact
 
 - **New docs:** `docs/dev/hardware-test-report.md`.
-- **OpenSpec:** `add-ir-blaster-firmware/tasks.md` loses tasks 3.4, 10.4, 11.4, 12.5 and 12.6. Task 9.3 keeps only the watchdog implementation, which is done.
+- **OpenSpec:** `add-ir-blaster-firmware/tasks.md` loses tasks 3.4, 10.4, 11.4, 12.5 and 12.6. `add-ethernet-support/tasks.md` loses its group 5 (hardware verification), which becomes group 8 here. Task 9.3 keeps only the watchdog implementation, which is done.
 - **Equipment needed:**
   - Raspberry Pi Zero W with TSOP38238 and KY-005 wired as in the README
   - USB-serial adapter (3.3 V)
@@ -42,5 +43,6 @@ _None._ The firmware capabilities (`connectivity`, `ir-receive`, `ir-transmit`, 
   - Logic analyzer or oscilloscope (≥ 10 MHz sample rate)
   - NEC, RC5 and air-conditioner remotes
   - A TV or other IR-controlled device
+  - For the Ethernet tests: a Pi 3 B or B+, a Pi 4 B or CM4 on a carrier board with an Ethernet jack, an Ethernet switch on the LAN, and a cable
 - **Firmware build:** uses the existing `make WATCHDOG_TEST=1` test image; no code changes.
 - **Boards:** the tests target the Raspberry Pi Zero W. The boards added by `add-multi-board-builds` (Zero 2 W, Pi 3, Pi 4 B, CM4 Lite, CM4 with eMMC) still need their own runs of groups 2–7 (see the note in `tasks.md`).
