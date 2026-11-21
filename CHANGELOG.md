@@ -11,12 +11,6 @@ the [README](README.md#releases).
 
 ### Added
 
-- 3D-printable enclosure for the Raspberry Pi Zero W in `case/`: SolidCraft
-  source (`raspir-blaster.sc`), print files (`Case.stl`, `Top Lid.stl`,
-  `raspir-blaster-case.3mf`) and the Pi Zero W mechanical drawing used as
-  reference.
-- This changelog. Each release turns the `[Unreleased]` entries into a dated
-  section on its release branch, and the release notes show that section.
 - Ethernet on the Raspberry Pi 3 B/B+, Pi 4 B and Compute Module 4. At boot
   the firmware uses Ethernet if a cable has link within 5 s, otherwise Wi-Fi
   (Pi 4 B and CM4 reboot once to switch to Wi-Fi).
@@ -31,6 +25,20 @@ the [README](README.md#releases).
 - `wpa_supplicant.conf` is only required on boards without Ethernet (Zero W,
   Zero 2 W, Pi 3 A+). Without it, boards with Ethernet use Ethernet instead of
   stopping with a configuration error.
+
+## [2026.11.1] - 2026-11-20
+
+### Added
+
+- 3D-printable enclosure for the Raspberry Pi Zero W in `case/`: SolidCraft
+  source (`raspir-blaster.sc`), print files (`Case.stl`, `Top Lid.stl`,
+  `raspir-blaster-case.3mf`) and the Pi Zero W mechanical drawing used as
+  reference.
+- This changelog. Each release turns the `[Unreleased]` entries into a dated
+  section on its release branch, and the release notes show that section.
+
+### Changed
+
 - The release workflow stops before creating the release branch if
   `[Unreleased]` is empty, or if `CHANGELOG.md` on `main` does not contain the
   previous release yet.
@@ -75,5 +83,6 @@ verified on hardware yet.
 - GitHub Actions: CI builds and tests every pushed commit, and a manual
   release workflow publishes versioned releases.
 
-[unreleased]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.0...HEAD
+[unreleased]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.1...HEAD
+[2026.11.1]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.0...2026.11.1
 [2026.11.0]: https://github.com/home-assistant-integrations/raspir-blaster/releases/tag/2026.11.0
