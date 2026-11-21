@@ -107,3 +107,26 @@ On boards with Ethernet, the firmware SHALL choose the network interface at boot
 #### Scenario: Cable pulled at runtime
 - **WHEN** the device runs on Ethernet and the cable is pulled for 2 minutes and plugged in again
 - **THEN** the device stays on Ethernet without a reboot, the log shows the MQTT disconnect and retries with backoff, and after the cable is back it reconnects and Home Assistant shows the sensor as available again
+
+### Requirement: Log over USB
+On the boards with USB device mode, the log SHALL be readable over a single USB cable as specified in connectivity ("Diagnostic log on serial"). These tests run on a Zero W and on a Pi 4 B, each powered only by a USB cable to a Mac, with a terminal (`screen /dev/cu.usbmodem* 115200`); the Pi 3 B check uses any Pi 3 B or B+.
+
+#### Scenario: Boot log replay
+- **WHEN** the board boots connected to the Mac and the terminal is opened only after the device has connected to MQTT
+- **THEN** within 10 s of boot `/dev/cu.usbmodem*` exists, and the terminal shows the log from the firmware banner on with CR LF line endings, followed by live lines (e.g. after an IR frame is received), while the UART log is unchanged
+
+#### Scenario: Reopen
+- **WHEN** the terminal is closed and opened again
+- **THEN** the kept log is shown again before the live output
+
+#### Scenario: No terminal
+- **WHEN** the board runs for 10 minutes with the cable connected but no terminal open, while IR frames are sent and received
+- **THEN** IR, MQTT and the watchdog behave normally (no reboot), and opening the terminal afterwards shows the most recent log
+
+#### Scenario: USB identity
+- **WHEN** the board is connected
+- **THEN** the Mac's System Information lists the USB device "raspir-blaster (<device_id>)" with vendor ID `0x1209`
+
+#### Scenario: Pi 3 B without USB device
+- **WHEN** a Pi 3 B or B+ is running
+- **THEN** no USB serial device appears on a connected computer, the UART log shows no "Cannot start USB serial log" warning, and Ethernet works as in "Ethernet selection and operation"
