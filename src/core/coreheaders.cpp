@@ -31,6 +31,7 @@
 #include "irmessage.h"	// IWYU pragma: keep
 #include "irtxqueue.h"	// IWYU pragma: keep
 #include "jsontokenizer.h"	// IWYU pragma: keep
+#include "logring.h"	// IWYU pragma: keep
 #include "netselect.h"	// IWYU pragma: keep
 #include "textwriter.h"	// IWYU pragma: keep
 #include "version.h"	// IWYU pragma: keep

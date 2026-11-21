@@ -44,7 +44,7 @@ EXTRAINCLUDE = -I $(FW_DIR) -I $(CORE_DIR) -I $(SRCROOT)/build/generated
 
 CORE_OBJS = $(notdir $(patsubst %.cpp,%.o,$(wildcard $(CORE_DIR)/*.cpp)))
 
-FW_OBJS = main.o kernel.o irmqttclient.o irreceiver.o irtransmitter.o
+FW_OBJS = main.o kernel.o irmqttclient.o irreceiver.o irtransmitter.o logtee.o
 
 OBJS = $(FW_OBJS) $(CORE_OBJS)
 
@@ -60,6 +60,7 @@ LIBS = $(CIRCLEHOME)/addon/wlan/hostap/wpa_supplicant/libwpa_supplicant.a \
        $(CIRCLEHOME)/addon/SDCard/libsdcard.a \
        $(CIRCLEHOME)/lib/net/libnet.a \
        $(CIRCLEHOME)/lib/sched/libsched.a \
+       $(CIRCLEHOME)/lib/usb/gadget/libusbgadget.a \
        $(CIRCLEHOME)/lib/usb/libusb.a \
        $(CIRCLEHOME)/lib/input/libinput.a \
        $(CIRCLEHOME)/lib/fs/libfs.a \

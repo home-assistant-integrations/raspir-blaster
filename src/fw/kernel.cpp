@@ -42,7 +42,8 @@
 static const char FromKernel[] = "kernel";
 
 CKernel::CKernel (void)
-:	m_Timer (&m_Interrupt),
+:	m_LogTee (&m_Serial),
+	m_Timer (&m_Interrupt),
 	m_Logger (m_Options.GetLogLevel (), &m_Timer),
 	m_EMMC (&m_Interrupt, &m_Timer, &m_ActLED),
 	m_WLAN (FIRMWARE_PATH),
@@ -75,7 +76,7 @@ boolean CKernel::Initialize (void)
 {
 	// Without the serial log nothing can be diagnosed: fail hard.
 	if (   !m_Serial.Initialize (115200)
-	    || !m_Logger.Initialize (&m_Serial)
+	    || !m_Logger.Initialize (&m_LogTee)
 	    || !m_Interrupt.Initialize ()
 	    || !m_Timer.Initialize ())
 	{
@@ -92,13 +93,20 @@ boolean CKernel::Initialize (void)
 	Model.Append (pBoard);
 	Model.Append (" (Circle bare-metal)");
 
-	if (!InitializeStorage ())
+	boolean bStorage = InitializeStorage ();
+	boolean bConfig = bStorage && LoadConfig ();
+
+	// Also in the error states, so their messages can be read over USB.
+	// device_id is the configured one, or the default.
+	StartUSBLog ();
+
+	if (!bStorage)
 	{
 		m_State = StateFatal;
 		return TRUE;
 	}
 
-	if (!LoadConfig ())
+	if (!bConfig)
 	{
 		m_State = StateDegraded;
 		return TRUE;
@@ -275,6 +283,39 @@ boolean CKernel::InitializeEthernet (boolean bCheckLink)
 #endif
 }
 
+// Log over USB on the boards whose DWC controller can be a USB device; see
+// openspec/specs/connectivity ("Diagnostic log on serial").
+void CKernel::StartUSBLog (void)
+{
+	if (!BoardHasUSBDevice ())
+	{
+		return;
+	}
+
+	if (!m_LogTee.StartUSB (&m_Interrupt, m_Config.DeviceID))
+	{
+		m_Logger.Write (FromKernel, LogWarning, "Cannot start USB serial log");
+	}
+}
+
+// Zero W, Zero 2 W, Pi 3 A+ and Pi 4 B (USB-C port). Not the Pi 3 B/B+ (USB
+// is behind the hub/Ethernet chip and used as host) and not the CM4
+// (otg_mode=1 routes its USB 2 port to the xHCI host controller).
+boolean CKernel::BoardHasUSBDevice (void)
+{
+	switch (CMachineInfo::Get ()->GetMachineModel ())
+	{
+	case MachineModelZeroW:
+	case MachineModelZero2W:
+	case MachineModel3APlus:
+	case MachineModel4B:
+		return TRUE;
+
+	default:
+		return FALSE;
+	}
+}
+
 // Pi 3 B/B+ (USB LAN9514/LAN7515), Pi 4 B and CM4 (GENET; the PHY is on the
 // module, the jack on the carrier board).
 boolean CKernel::BoardHasEthernet (void)
@@ -436,6 +477,7 @@ void CKernel::Run (void)
 		m_Watchdog.Start (WATCHDOG_TIMEOUT_S);
 		for (;;)
 		{
+			m_LogTee.Process ();
 			UpdateLED ();
 			m_Scheduler.MsSleep (10);
 		}
@@ -449,6 +491,7 @@ void CKernel::Run (void)
 		for (;;)
 		{
 			FeedWatchdog ();
+			m_LogTee.Process ();
 			UpdateLED ();
 			m_Scheduler.MsSleep (50);
 		}
@@ -474,6 +517,7 @@ void CKernel::Run (void)
 		LogNetworkState ();
 		ProcessReceivedFrames ();
 		ProcessTransmitQueue ();
+		m_LogTee.Process ();
 		UpdateLED ();
 
 		m_Scheduler.MsSleep (MAIN_LOOP_SLEEP_MS);
