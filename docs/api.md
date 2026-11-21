@@ -206,13 +206,15 @@ curl --form-string password=secret http://<device>/api/restart
 
 ## `GET /api/config`
 
-Available in both modes. In setup mode, no password is needed; in normal
-mode, a `password` query parameter equal to `ota_password` is required (the
-same rule as the update and restart endpoints).
+Setup mode only, no password. `GET` has no request body and the firmware
+exposes no request headers, so there is nowhere to put a password except
+the URL — which would then leak into logs, browser history and proxies.
+In normal mode, read the configuration with `POST /api/config` instead,
+giving only `password` and no other field (see below); `GET` answers
+`"status":403` there.
 
 ```sh
-curl http://192.168.4.1/api/config                              # setup mode
-curl "http://<device>/api/config?password=secret"               # normal mode
+curl http://192.168.4.1/api/config
 ```
 
 ```json
@@ -260,6 +262,14 @@ curl --form-string mqtt_host=192.168.1.10 \
      --form-string wifi_password=secret123 \
      --form-string wifi_country=DE \
      http://192.168.4.1/api/config
+```
+
+**Reading in normal mode:** a request with `password` and no other field
+changes nothing and returns the current configuration instead (the same
+body `GET /api/config` returns in setup mode):
+
+```sh
+curl --form-string password=secret http://<device>/api/config
 ```
 
 ```json

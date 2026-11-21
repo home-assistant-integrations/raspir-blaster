@@ -24,6 +24,7 @@
 #include "version.h"
 #include "zipreader.h"
 #include <circle/logger.h>
+#include <circle/sched/scheduler.h>
 #include <circle/util.h>
 #include <fatfs/ff.h>
 
@@ -109,6 +110,13 @@ TFirmwareValidateResult CFirmwareUpdater::Validate (const uint8_t *pZip, size_t 
 	Result.UploadedVersion[0] = '\0';
 	Result.Reason = VersionNotComparable;
 	Result.Token[0] = '\0';
+
+	if (m_bBusy)
+	{
+		CopyTrunc (Result.ErrorMessage, sizeof Result.ErrorMessage,
+		          "update already in progress");
+		return Result;
+	}
 
 	m_bBusy = TRUE;
 
@@ -231,6 +239,11 @@ TFirmwareValidateResult CFirmwareUpdater::Validate (const uint8_t *pZip, size_t 
 
 const char *CFirmwareUpdater::Confirm (const char *pToken, u64 nNowMs)
 {
+	if (m_bBusy)
+	{
+		return "update already in progress";
+	}
+
 	if (m_pPendingImage == 0)
 	{
 		return "no update pending";
@@ -262,7 +275,7 @@ const char *CFirmwareUpdater::Confirm (const char *pToken, u64 nNowMs)
 
 boolean CFirmwareUpdater::Cancel (void)
 {
-	if (m_pPendingImage == 0)
+	if (m_bBusy || m_pPendingImage == 0)
 	{
 		return FALSE;
 	}
@@ -313,6 +326,10 @@ const char *CFirmwareUpdater::Install (const uint8_t *pImage, size_t nImageLen)
 			return "write error (card full?)";
 		}
 		nWritten += nActuallyWritten;
+
+		// Yield between chunks so the main task keeps feeding the
+		// watchdog during a multi-megabyte write.
+		CScheduler::Get ()->Yield ();
 	}
 
 	f_sync (&File);
@@ -341,6 +358,7 @@ const char *CFirmwareUpdater::Install (const uint8_t *pImage, size_t nImageLen)
 			break;
 		}
 		Hash.Update (s_ReadBuf, nRead);
+		CScheduler::Get ()->Yield ();
 	}
 	f_close (&File);
 

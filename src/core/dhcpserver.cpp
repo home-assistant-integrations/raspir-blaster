@@ -90,6 +90,7 @@ static uint8_t ParseMsgType (const uint8_t *pOpts, size_t nOptsLen)
 		if (nType == OPT_PAD) continue;
 		if (i >= nOptsLen) break;
 		uint8_t nLen = pOpts[i++];
+		if (nLen > nOptsLen - i) break;		// value does not fit: malformed
 		if (nType == OPT_MSG_TYPE && nLen >= 1)
 			return pOpts[i];
 		i += nLen;
@@ -108,6 +109,7 @@ static bool ParseIP (const uint8_t *pOpts, size_t nOptsLen,
 		if (nType == OPT_PAD) continue;
 		if (i >= nOptsLen) break;
 		uint8_t nLen = pOpts[i++];
+		if (nLen > nOptsLen - i) break;		// value does not fit: malformed
 		if (nType == nOptType && nLen >= 4)
 		{
 			pIP[0] = pOpts[i + 0];

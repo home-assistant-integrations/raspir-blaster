@@ -21,6 +21,7 @@
 #include "test.h"
 #include "dhcpserver.h"
 #include <cstring>
+#include <vector>
 
 // ----- packet builder helpers ---------------------------------------------------
 
@@ -355,4 +356,26 @@ TEST (DHCPOfferContainsServerIDAndSubnet)
 	}
 	CHECK (hasServerID);
 	CHECK (hasSubnet);
+}
+
+TEST (DHCPTruncatedOptionDoesNotReadOutOfBounds)
+{
+	// A SERVER_ID (type 54) option claiming length 4 with only 2 bytes
+	// actually present before the buffer ends. ParseIP() must not read
+	// past the declared options length. The request buffer is sized
+	// exactly to its content (no slack) so ASan/UBSan catch any overread.
+	std::vector<uint8_t> req (240 + 7, 0);
+	req[OFF_OP] = 1; req[OFF_HTYPE] = 1; req[OFF_HLEN] = 6;
+	req[236] = 0x63; req[237] = 0x82; req[238] = 0x53; req[239] = 0x63;
+	req[240] = 53; req[241] = 1; req[242] = 3;	// DHCP message type: REQUEST
+	req[243] = 54; req[244] = 4;			// SERVER_ID, claims 4 bytes...
+	req[245] = 192; req[246] = 168;		// ...but only 2 are present
+
+	CDHCPServer srv;
+	uint8_t reply[512];
+	size_t replyLen = srv.Process (req.data (), req.size (), reply, sizeof reply);
+
+	// No crash/OOB read (checked by the sanitizers); the truncated option
+	// is simply ignored, same as if it were absent.
+	(void) replyLen;
 }

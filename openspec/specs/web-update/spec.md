@@ -18,7 +18,7 @@ Once its network is up (normal mode) or its access point is open (setup mode), t
 - **THEN** the response has status 200 and contains `"mode":"normal"`, `"network":"wifi"` and `"mqtt":"connected"`
 
 ### Requirement: Password in normal mode
-In normal mode, `POST /api/update`, `POST /api/update/confirm`, `POST /api/update/cancel`, `POST /api/restart`, `GET /api/config` and `POST /api/config` SHALL require the field `password` (form field for the `POST` endpoints, query parameter for `GET /api/config`) to equal `ota_password`. Without `ota_password` in the configuration these endpoints SHALL answer `"status":403` with the message that updates and restarts are disabled. A wrong password SHALL be answered `"status":403` after a delay of 1 s, without looking at an uploaded file, and SHALL be logged without the entered value. In setup mode no password is required.
+In normal mode, `POST /api/update`, `POST /api/update/confirm`, `POST /api/update/cancel`, `POST /api/restart` and `POST /api/config` SHALL require the form field `password` to equal `ota_password`. `GET /api/config` SHALL NOT accept a password in any form (see "Configuration endpoints") and SHALL answer `"status":403` in normal mode. Without `ota_password` in the configuration the password-protected endpoints SHALL answer `"status":403` with the message that updates and restarts are disabled. A wrong password SHALL be answered `"status":403` after a delay of 1 s, without looking at an uploaded file, and SHALL be logged without the entered value. In setup mode no password is required.
 
 #### Scenario: Wrong password
 - **WHEN** a zip is uploaded in normal mode with a wrong password
@@ -128,9 +128,9 @@ A CM4 without a Wi-Fi chip SHALL keep the degraded state.
 - **THEN** it enters the degraded state as before, without an access point
 
 ### Requirement: Configuration endpoints
-`GET /api/config` and `POST /api/config` SHALL be available in both modes. In setup mode no password is required; in normal mode they SHALL require `password` to equal `ota_password`, under the same rules as [Password in normal mode](#requirement-password-in-normal-mode) (403 without `ota_password` configured, 403 after a 1 s delay on a wrong password).
-- `GET /api/config` SHALL return the current values of all `raspir-blaster.conf` keys and the Wi-Fi `ssid` and `country`, with `mqtt_password`, `ota_password` and the Wi-Fi password replaced by a flag whether they are set.
-- `POST /api/config` SHALL accept the `raspir-blaster.conf` keys and `wifi_ssid`, `wifi_password`, `wifi_country` (two letters). It SHALL validate them with the same rules as the configuration file (see device-config) and refuse the request with `"status":400` and a list of the invalid fields if any value is invalid. Otherwise it SHALL write `raspir-blaster.conf` (all given keys) and, if `wifi_ssid` is given, `wpa_supplicant.conf` (WPA2-PSK, or an open network if no password is given), each via a temporary file and rename, and answer `"result":"saved"`. The new configuration SHALL take effect after `POST /api/restart`.
+`GET /api/config` SHALL be setup mode only (403 in normal mode) and SHALL require no password, because a GET request has no body and the firmware exposes no request headers — a password would have nowhere to go but the URL, which leaks into logs, browser history and proxies. `POST /api/config` SHALL be available in both modes: no password in setup mode; in normal mode it SHALL require the form field `password` to equal `ota_password`, under the same rules as [Password in normal mode](#requirement-password-in-normal-mode) (403 without `ota_password` configured, 403 after a 1 s delay on a wrong password). A `POST /api/config` request whose only field is `password` (no `raspir-blaster.conf` or Wi-Fi field) SHALL change nothing and instead answer as `GET /api/config` would — the normal-mode equivalent of reading the configuration.
+- `GET /api/config` and a password-only `POST /api/config` SHALL return the current values of all `raspir-blaster.conf` keys and the Wi-Fi `ssid` and `country`, with `mqtt_password`, `ota_password` and the Wi-Fi password replaced by a flag whether they are set.
+- `POST /api/config` with at least one `raspir-blaster.conf` or Wi-Fi field SHALL accept the `raspir-blaster.conf` keys and `wifi_ssid`, `wifi_password`, `wifi_country` (two letters). It SHALL validate them with the same rules as the configuration file (see device-config) and refuse the request with `"status":400` and a list of the invalid fields if any value is invalid. Otherwise it SHALL write `raspir-blaster.conf` (all given keys) and, if `wifi_ssid` is given, `wpa_supplicant.conf` (WPA2-PSK, or an open network if no password is given), each via a temporary file and rename, and answer `"result":"saved"`. The new configuration SHALL take effect after `POST /api/restart`.
 
 #### Scenario: Configure a Zero W
 - **WHEN** in setup mode a client posts `mqtt_host=192.168.1.10`, `wifi_ssid=Home`, `wifi_password=secret123`, `wifi_country=DE` and then calls `POST /api/restart`
@@ -147,3 +147,11 @@ A CM4 without a Wi-Fi chip SHALL keep the degraded state.
 #### Scenario: Normal mode requires the password
 - **WHEN** a client calls `POST /api/config` on a device in normal mode without `password`
 - **THEN** the response has `"status":403` and no file is changed
+
+#### Scenario: Reading in normal mode
+- **WHEN** a client in normal mode calls `POST /api/config` with only `password` (correct) and no other field
+- **THEN** the response is the current configuration (as `GET /api/config` returns in setup mode), and no file is changed
+
+#### Scenario: GET never carries a password
+- **WHEN** a client calls `GET /api/config` on a device in normal mode
+- **THEN** the response has `"status":403`, regardless of any query parameter, and no file is changed

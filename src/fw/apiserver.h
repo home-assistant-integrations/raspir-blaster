@@ -77,8 +77,9 @@ private:
 	THTTPStatus HandleUpdateConfirm (const char *pFormData, u8 *pBuf, unsigned *pLen);
 	THTTPStatus HandleUpdateCancel  (const char *pFormData, u8 *pBuf, unsigned *pLen);
 	THTTPStatus HandleRestart       (const char *pFormData, u8 *pBuf, unsigned *pLen);
-	THTTPStatus HandleGetConfig     (const char *pParams, u8 *pBuf, unsigned *pLen);
+	THTTPStatus HandleGetConfig     (u8 *pBuf, unsigned *pLen);
 	THTTPStatus HandlePostConfig    (const char *pFormData, u8 *pBuf, unsigned *pLen);
+	THTTPStatus WriteConfigJSON     (u8 *pBuf, unsigned *pLen);
 
 	// Writes {"result":"error","status":nStatus,"message":pMessage} and
 	// always returns HTTPOK: see design.md D2 for why the wire status is

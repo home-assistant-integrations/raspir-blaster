@@ -148,9 +148,15 @@ THTTPStatus CApiServer::GetContent (const char  *pPath,
 	if (strcmp (pPath, "/api/config") == 0)
 	{
 		// GetContent() is not told the HTTP method; a GET has no form
-		// data (pFormData == ""), a POST does.
+		// data (pFormData == ""), a POST does. GET never takes a
+		// password: Circle exposes no request headers, and a GET has no
+		// body, so the only place to put one would be the query string,
+		// which leaks into logs/history/proxies. GET therefore only
+		// works in setup mode; a normal-mode read goes through
+		// POST /api/config with no raspir-blaster.conf/Wi-Fi fields
+		// (password in the form body, like every other endpoint).
 		return (pFormData[0] != '\0') ? HandlePostConfig (pFormData, pBuffer, pLength)
-		                               : HandleGetConfig (pParams, pBuffer, pLength);
+		                               : HandleGetConfig (pBuffer, pLength);
 	}
 
 	return WriteError (pBuffer, pLength, 404, "not found");
@@ -403,17 +409,23 @@ THTTPStatus CApiServer::HandleRestart (const char *pFormData, u8 *pBuf, unsigned
 	return HTTPOK;
 }
 
-THTTPStatus CApiServer::HandleGetConfig (const char *pParams, u8 *pBuf, unsigned *pLen)
+THTTPStatus CApiServer::HandleGetConfig (u8 *pBuf, unsigned *pLen)
 {
-	char Password[CONFIG_OTA_PASSWORD_MAX + 1];
-	TFormResult PasswordResult = FormDataGet (pParams, "password", Password, sizeof Password);
-
-	THTTPStatus Result;
-	if (!CheckOTAPassword (PasswordResult == FormFound ? Password : 0, pBuf, pLen, &Result))
+	// GET never takes a password (see GetContent()'s dispatch comment),
+	// so it only works where none is required.
+	if (!m_pCtx->bSetupMode)
 	{
-		return Result;
+		return WriteError (pBuf, pLen, 403,
+		                   "use POST /api/config with only 'password' to read in normal mode");
 	}
 
+	return WriteConfigJSON (pBuf, pLen);
+}
+
+// Shared by HandleGetConfig() (setup mode) and HandlePostConfig()'s
+// read-only case (normal mode, password already checked by the caller).
+THTTPStatus CApiServer::WriteConfigJSON (u8 *pBuf, unsigned *pLen)
+{
 	TWiFiStatus WiFi;
 	WiFi.bConfigured = false;
 	WiFi.bPasswordSet = false;
@@ -480,6 +492,25 @@ THTTPStatus CApiServer::HandlePostConfig (const char *pFormData, u8 *pBuf, unsig
 		"device_id", "topic_base", "ir_frame_gap_ms", "ota_password",
 	};
 	static const unsigned nConfKeys = sizeof s_ConfKeys / sizeof s_ConfKeys[0];
+
+	// No raspir-blaster.conf/Wi-Fi field given at all: this is a
+	// password-authenticated read, not a write (the normal-mode
+	// counterpart of GET /api/config, which cannot carry a password
+	// safely). Changes nothing.
+	{
+		char Dummy[2];
+		// A too-long or invalid value still means the key is present in
+		// the request; only FormMissing means it is truly absent.
+		bool bAnyFieldGiven = FormDataGet (pFormData, "wifi_ssid", Dummy, sizeof Dummy) != FormMissing;
+		for (unsigned i = 0; i < nConfKeys && !bAnyFieldGiven; i++)
+		{
+			bAnyFieldGiven = FormDataGet (pFormData, s_ConfKeys[i], Dummy, sizeof Dummy) != FormMissing;
+		}
+		if (!bAnyFieldGiven)
+		{
+			return WriteConfigJSON (pBuf, pLen);
+		}
+	}
 
 	TConfig NewConfig;
 	ConfigSetDefaults (&NewConfig);
