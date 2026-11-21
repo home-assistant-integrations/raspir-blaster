@@ -246,12 +246,22 @@ yet. If a later step fails, the workflow deletes the release branch again, so
 the version number is used by the next run. Only one release runs at a time.
 
 The workflow never writes to `main`. After each release, bring the released
-changelog back to `main` with a pull request:
+changelog back to `main` with a pull request, **before the next release**
+(the next release refuses to start until then):
 
 ```sh
+git fetch origin
 git switch -c changelog-<version> origin/main
+git diff origin/rel-<version>~1 origin/main -- CHANGELOG.md   # entries merged since the release started
 git checkout origin/rel-<version> -- CHANGELOG.md
-git commit -m "docs(changelog): <version>"
+```
+
+If the `git diff` shows new entries (pull requests merged after the release
+started), copy them back under `## [Unreleased]`: the released file only has
+an empty `[Unreleased]`, so without this step those entries are lost. Then:
+
+```sh
+git commit -am "docs(changelog): <version>"
 git push -u origin changelog-<version>   # then open the pull request
 ```
 

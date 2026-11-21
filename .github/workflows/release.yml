@@ -92,7 +92,7 @@ jobs:
           PREVIOUS: ${{ steps.version.outputs.previous }}
         run: |
           if ! scripts/changelog.sh release "$VERSION" "$(date -u +%F)" "$PREVIOUS"; then
-            echo "::error title=CHANGELOG.md::See the message above. Add entries under [Unreleased], or copy CHANGELOG.md from rel-$PREVIOUS to main (git checkout rel-$PREVIOUS -- CHANGELOG.md) in a pull request."
+            echo "::error title=CHANGELOG.md::See the message above. Add entries under [Unreleased], or bring CHANGELOG.md from rel-$PREVIOUS back to main in a pull request, keeping entries merged since then under [Unreleased] (README, \"Making a release\")."
             exit 1
           fi
           scripts/changelog.sh section "$VERSION" >> "$GITHUB_STEP_SUMMARY"
