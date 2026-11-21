@@ -24,6 +24,7 @@ Tests are run by hand following `tasks.md`. Results go into `docs/dev/hardware-t
 
 ### D2 — Test setup
 - **Device:** Pi Zero W with TSOP38238 on GPIO23 / header pin 16 and KY-005 on GPIO18 / header pin 12, wired as in the README.
+- **Ethernet tests:** a Pi 3 B or B+ and a Pi 4 B or CM4 (carrier board with an Ethernet jack), wired the same way for the IR checks, on a switch in the same LAN as the broker and the DHCP server.
 - **Serial log:** a 3.3 V USB-serial adapter on header pins 8 (TX) and 10 (RX), 115200 baud, e.g. `screen /dev/tty.usbserial-* 115200`.
 - **MQTT:** the Home Assistant Mosquitto add-on. Messages are observed and injected with `mosquitto_sub -v -t 'home/ir_blaster/#'` and `mosquitto_pub -t home/ir_blaster/send -f frame.json`, from a machine on the same LAN.
 - **Signal measurement:** a logic analyzer (≥ 10 MHz sample rate, e.g. a Saleae-compatible device with sigrok/PulseView) clipped to GPIO18 and GND. At 10 MHz one sample is 0.1 µs, small enough for the ±1 % carrier and ±50 µs edge criteria. The duty cycle is read from the PWM pulse widths.

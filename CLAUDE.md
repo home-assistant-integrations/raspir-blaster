@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Bare-metal IR blaster and receiver for a Raspberry Pi Zero W, built on the [Circle](https://github.com/rsta2/circle) C++ framework (no Linux). It bridges Home Assistant and infrared over MQTT: payloads from HA are transmitted as IR, and IR from physical remotes is published back to HA.
 
-Technical details are described in the [technical design document](docs/dev/raspir-blaster-home-assistant.md). The authoritative requirements are in `openspec/specs/`; the design decisions behind them are in the `design.md` files of the archived changes in `openspec/changes/archive/` (`add-ir-blaster-firmware`: firmware architecture; `add-multi-board-builds`: build targets and boot media; `add-ci-release-workflows`: CI, releases and versioning; `add-release-changelog`: changelog in releases).
+Technical details are described in the [technical design document](docs/dev/raspir-blaster-home-assistant.md). The authoritative requirements are in `openspec/specs/`; the design decisions behind them are in the `design.md` files of the archived changes in `openspec/changes/archive/` (`add-ir-blaster-firmware`: firmware architecture; `add-multi-board-builds`: build targets and boot media; `add-ci-release-workflows`: CI, releases and versioning; `add-release-changelog`: changelog in releases; `add-ethernet-support`: Ethernet and network selection).
 
 ## Commands
 
@@ -65,6 +65,7 @@ Runtime model (single core, cooperative `CScheduler`):
 - **ISR** (`CIRReceiver::InterruptHandler`): only stores edge timestamps in `CIRFrameAssembler`. The assembler does gap segmentation itself, with two capture buffers, so frames survive the main loop being busy (up to 2 s per transmission). Main-loop calls into the assembler are wrapped in `EnterCritical`/`LeaveCritical`.
 - Raw timings everywhere, by design: no protocol decoding. Even index = mark, odd = space. Messages are validated strictly (rejected, never clamped); limits: 4096 B payload, 512 timings, each 1–65535 µs, ≤ 2 s total, `freq` 20–60 kHz.
 - States: config missing/invalid → *degraded* (no MQTT, slow ACT blink, watchdog fed, no reboot loop); driver failure → *fatal* (fast blink, watchdog reboots after 10 s).
+- Network (`openspec/specs/connectivity`, "Network interface selection"): one interface per boot, chosen in `CKernel::Initialize` via `NetSelect()` (`src/core/netselect.h`). Boards with Ethernet (`BoardHasEthernet()`: 3B, 3B+, 4B, CM4) use Ethernet if `wpa_supplicant.conf` is missing, otherwise Ethernet only with link within 5 s. Pi 3 B/B+ probe the USB chip before the net subsystem exists; Pi 4/CM4 start the net subsystem on Ethernet and, without link, write `SD:/raspir-blaster.wifi` and reboot (`CBcmWatchdog::Restart()`); the next boot deletes the marker first and uses Wi-Fi. The Wi-Fi chip is only initialized for Wi-Fi.
 - Pins (identical on all boards): IR TX = GPIO18 / header pin 12 (PWM0, ALT5, `PWM_CHANNEL1`); IR RX = GPIO23 / header pin 16. Serial log on UART0 (GPIO14/15, 115200). The boot log names the board (`CMachineInfo::GetMachineName()`), which is also the HA discovery `model`.
 
 ## Circle API facts (verified against Step51.1.1)
@@ -79,6 +80,7 @@ The design doc's code snippets predate the implementation and do not match Circl
 - `CBcmWatchdog::Start(seconds)` both starts and reloads the watchdog (max 15 s).
 - On RASPPI ≤ 3, `USE_SDHOST` is the default: the SD card uses SDHOST, the WLAN uses the EMMC controller.
 - `CMQTTClient::Connect` warns if the client ID exceeds 23 characters; `device_id` allows 31.
+- `CNetSubSystem` is a singleton with one `TNetDeviceType`; `Initialize()` starts a `CNetTask` that is never stopped, so it cannot be replaced by one of another type. On `RASPPI == 4` the GENET driver (`CBcm54213Device`) is a member of Circle's net device layer and only exists after `CNetSubSystem::Initialize()`. Pi 3 B/B+ Ethernet are USB devices (`CSMSC951xDevice`, `CLAN7800Device`), registered when `CUSBHCIDevice::Initialize()` enumerates them. Link state: `CNetDevice::GetNetDevice (NetDeviceTypeEthernet)`, then `UpdatePHY()` + `IsLinkUp()`.
 
 ## Conventions
 

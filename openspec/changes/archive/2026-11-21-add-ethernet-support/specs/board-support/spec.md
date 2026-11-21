@@ -31,6 +31,6 @@ Boards outside the supported list SHALL NOT be listed in the generated `config.t
 - **WHEN** the universal card is inserted into a Pi 5
 - **THEN** no raspir-blaster kernel is started (the Pi 5 kernel image `kernel_2712.img` does not exist on the card)
 
-#### Scenario: CM4 without wireless and without Ethernet link
-- **WHEN** the firmware runs on a CM4 without a Wi-Fi chip, with `wpa_supplicant.conf` present and no Ethernet link
+#### Scenario: CM4 without wireless
+- **WHEN** the firmware runs on a CM4 without a Wi-Fi chip, with `wpa_supplicant.conf` present and no Ethernet link (with a link, or without `wpa_supplicant.conf`, it uses Ethernet; see connectivity, "Network interface selection")
 - **THEN** it reboots once to try Wi-Fi, logs "Cannot initialize Wi-Fi", and enters the fatal state, so the watchdog reboots it and the next boot tries Ethernet again

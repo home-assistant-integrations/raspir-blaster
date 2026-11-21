@@ -17,9 +17,16 @@ the [README](README.md#releases).
   reference.
 - This changelog. Each release turns the `[Unreleased]` entries into a dated
   section on its release branch, and the release notes show that section.
+- Ethernet on the Raspberry Pi 3 B/B+, Pi 4 B and Compute Module 4. At boot
+  the firmware uses Ethernet if a cable has link within 5 s, otherwise Wi-Fi
+  (Pi 4 B and CM4 reboot once to switch to Wi-Fi).
+- Support for the Compute Module 4 without wireless (Ethernet only).
 
 ### Changed
 
+- `wpa_supplicant.conf` is only required on boards without Ethernet (Zero W,
+  Zero 2 W, Pi 3 A+). Without it, boards with Ethernet use Ethernet instead of
+  stopping with a configuration error.
 - The release workflow stops before creating the release branch if
   `[Unreleased]` is empty, or if `CHANGELOG.md` on `main` does not contain the
   previous release yet.

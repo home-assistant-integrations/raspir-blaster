@@ -10,7 +10,7 @@ The firmware only connects over Wi-Fi, although the Pi 3 B, Pi 3 B+, Pi 4 B and 
   - **Pi 4 B / CM4:** Circle's network layer owns the Ethernet driver, so the link can only be checked by starting the network on Ethernet. Without link, the firmware writes a marker file to the SD card and reboots once; the next boot uses Wi-Fi and deletes the marker. The following boot tries Ethernet again.
 - **`wpa_supplicant.conf` only needed for Wi-Fi:** a board with Ethernet and no `wpa_supplicant.conf` always uses Ethernet and waits for a cable instead of entering the degraded state. Boards without Ethernet keep today's behavior.
 - **CM4 without wireless becomes supported** (Ethernet only), and is removed from the list of unsupported boards.
-- **Boot log** names the chosen interface and why (e.g. "Network: Ethernet, link up 1000 Mbit/s full duplex", "Network: Wi-Fi, no Ethernet link").
+- **Boot log** names the chosen interface and why (e.g. "Network: Ethernet (link up, 1000BASE-T Full-duplex)", "Network: Wi-Fi (no Ethernet link)").
 - **Selection logic** as a hardware-independent function in `src/core`, with host unit tests.
 - **Documentation:** README (supported boards, Ethernet, first boot without `wpa_supplicant.conf`), CHANGELOG entry.
 
@@ -39,4 +39,4 @@ The firmware only connects over Wi-Fi, although the Pi 3 B, Pi 3 B+, Pi 4 B and 
 - New `src/core/netselect.{h,cpp}` + `tests/test_netselect.cpp`.
 - No change to the build targets, images, `config.txt`, or the SD card layout (the marker file is created only at runtime).
 - Boot time without a cable on an Ethernet board: Pi 3 B/B+ +5 s; Pi 4/CM4 one extra reboot (about +15 s).
-- `README.md`, `CHANGELOG.md`, `CLAUDE.md`; hardware tests need a Pi 3 B/B+ and a Pi 4 or CM4.
+- `README.md`, `CHANGELOG.md`, `CLAUDE.md`. The hardware tests (Pi 3 B/B+ and Pi 4 or CM4) are part of the change `verify-ir-blaster-hardware` (group 8).
