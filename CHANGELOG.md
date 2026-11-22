@@ -48,6 +48,47 @@ the [README](README.md#releases).
   request for it. This replaces a step that was twice forgotten and only
   noticed when the following release failed.
 
+## [2026.11.3] - 2026-11-22
+
+### Added
+
+- HTTP API on port 80 (`GET /api/status`, `GET`/`POST /api/config`;
+  `POST /api/update`, `/api/update/confirm`, `/api/update/cancel` and
+  `/api/restart` with `ota_password`): upload a release zip to update the
+  firmware over the network instead of swapping SD card files by hand, or
+  read/change `raspir-blaster.conf` and the Wi-Fi network remotely. See
+  [`docs/api.md`](docs/api.md).
+- Setup mode: boards with a Wi-Fi chip open an access point
+  (`raspir-blaster-<xxxx>`) and serve the API without a password when
+  `raspir-blaster.conf` is missing or invalid, or Wi-Fi is needed and
+  `wpa_supplicant.conf` is missing. The access point closes after
+  30 minutes without an API request.
+- mDNS (`<hostname>.local`, `_http._tcp` service with version/board/mode
+  TXT records) in both normal and setup mode.
+- `ota_password` configuration key (8–63 chars): required for the update
+  and restart endpoints in normal mode; without it those endpoints answer
+  403.
+
+### Changed
+
+- `device_id` is now used as-is for the DHCP host name and the mDNS
+  `.local` name (previously it was used unchanged, which showed any `_` it
+  contained — not a valid host name character). To make this possible,
+  `device_id`'s allowed characters change from `[a-z0-9_]` to `[a-z0-9-]`
+  (default `pi_zero_ir` → `pi-zero-ir`); an existing `device_id` containing
+  `_` is now rejected and falls back to the new default, which also
+  changes the MQTT client ID, topics and Home Assistant identifiers, not
+  just the host name. Check the boot log for an "invalid value ... for
+  'device_id'" warning after updating.
+- A missing or invalid `raspir-blaster.conf` (or, on a Wi-Fi-only board, a
+  missing `wpa_supplicant.conf`) enters setup mode instead of the degraded
+  state, on boards with a Wi-Fi chip. A CM4 without wireless still enters
+  the degraded state.
+- The release workflow now brings `CHANGELOG.md` back to `main` itself after
+  publishing a release, instead of relying on a maintainer to open a pull
+  request for it. This replaces a step that was twice forgotten and only
+  noticed when the following release failed.
+
 ## [2026.11.2] - 2026-11-21
 
 ### Added
@@ -124,7 +165,8 @@ verified on hardware yet.
 - GitHub Actions: CI builds and tests every pushed commit, and a manual
   release workflow publishes versioned releases.
 
-[unreleased]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.2...HEAD
+[unreleased]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.3...HEAD
+[2026.11.3]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.2...2026.11.3
 [2026.11.2]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.1...2026.11.2
 [2026.11.1]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.0...2026.11.1
 [2026.11.0]: https://github.com/home-assistant-integrations/raspir-blaster/releases/tag/2026.11.0
