@@ -462,3 +462,7 @@ For 36 kHz (RC5/RC6) or 40 kHz (Sony) devices, set `freq` accordingly.
 - Technical design: [docs/dev/raspir-blaster-home-assistant.md](docs/dev/raspir-blaster-home-assistant.md)
 - Coding guidelines: [docs/dev/development-guidelines.md](docs/dev/development-guidelines.md)
 - Specifications and changes: [openspec/](openspec/)
+
+## Case
+
+[Case](case/Case.stl)
