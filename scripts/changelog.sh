@@ -31,6 +31,17 @@
 #   changelog.sh [-f FILE] section VERSION
 #       Prints the entries of VERSION's section, without its heading.
 #
+#   changelog.sh [-f FILE] backport RELEASED_FILE
+#       Brings a released version back into FILE's [Unreleased] section:
+#       RELEASED_FILE (a "release"-processed CHANGELOG.md, e.g. from
+#       rel-<version>) has the new version's dated section and an empty
+#       [Unreleased]; FILE (e.g. main's CHANGELOG.md) may have gained new
+#       [Unreleased] entries since the release branch was created. Replaces
+#       FILE with RELEASED_FILE's content, but keeps FILE's current
+#       [Unreleased] entries instead of RELEASED_FILE's empty one. A no-op
+#       (exit 0, FILE unchanged) if FILE already has a section for
+#       RELEASED_FILE's newest version.
+#
 # FILE defaults to CHANGELOG.md. Only POSIX awk features are used, so this
 # runs with BSD awk (macOS) and mawk/gawk (Ubuntu).
 
@@ -42,7 +53,7 @@ die() {
 }
 
 usage() {
-    die "usage: changelog.sh [-f FILE] release VERSION DATE [PREVIOUS] | [-f FILE] section VERSION"
+    die "usage: changelog.sh [-f FILE] release VERSION DATE [PREVIOUS] | [-f FILE] section VERSION | [-f FILE] backport RELEASED_FILE"
 }
 
 file="CHANGELOG.md"
@@ -181,6 +192,80 @@ section)
         if (entries == 0) fail("section " version " in " file " has no entries")
         for (i = first; i <= last; i++) print line[i]
     }' "$file"
+    ;;
+
+backport)
+    [[ $# -eq 1 ]] || usage
+    released="$1"
+    [[ -f "$released" ]] || die "$released not found"
+
+    tmp="$(mktemp "$file.XXXXXX")"
+    trap 'rm -f "$tmp"' EXIT
+    awk -v file="$file" -v released="$released" "$AWK_LIB"'
+    FNR == NR { rline[FNR] = $0; rn = FNR; next }
+    { line[FNR] = $0; n = FNR }
+    END {
+        if (failed) exit 1
+
+        # Locate "## [Unreleased]" and the next "## [" heading (the newly
+        # released version) in the released file.
+        ru = 0
+        for (i = 1; i <= rn; i++)
+            if (ru == 0 && rline[i] ~ /^## \[Unreleased\][ \t]*$/) ru = i
+        if (ru == 0) fail("no \"## [Unreleased]\" heading in " released)
+        rv = ru + 1
+        while (rv <= rn && rline[rv] !~ /^## \[/) rv++
+        if (rv > rn) fail("no released version section after \"## [Unreleased]\" in " released)
+        version = substr(rline[rv], 5, index(rline[rv], "]") - 5)
+
+        # Idempotent: already backported.
+        for (i = 1; i <= n; i++)
+            if (index(line[i], "## [" version "]") == 1) {
+                print "changelog: " file " already has a section for " version "; nothing to backport" > "/dev/stderr"
+                exit 0
+            }
+
+        # [Unreleased] body in FILE: keep text before the first category and
+        # every category with entries (same rule as "release").
+        u = 0
+        for (i = 1; i <= n; i++)
+            if (u == 0 && line[i] ~ /^## \[Unreleased\][ \t]*$/) u = i
+        if (u == 0) fail("no \"## [Unreleased]\" heading in " file)
+        e = u + 1
+        while (e <= n && !is_section_end(line[e])) e++
+
+        kept = 0; in_cat = 0; g = 0; g_has = 0
+        for (i = u + 1; i < e; i++) {
+            s = line[i]
+            if (s ~ /^### /) {
+                if (in_cat && g_has) { for (k = 1; k <= g; k++) body[++kept] = grp[k] }
+                in_cat = 1; g = 0; g_has = 0
+                grp[++g] = s
+                continue
+            }
+            if (in_cat) {
+                grp[++g] = s
+                if (is_entry(s)) g_has = 1
+            } else {
+                body[++kept] = s
+            }
+        }
+        if (in_cat && g_has) { for (k = 1; k <= g; k++) body[++kept] = grp[k] }
+        first = 1; while (first <= kept && body[first] ~ /^[ \t]*$/) first++
+        last = kept; while (last >= first && body[last] ~ /^[ \t]*$/) last--
+
+        for (i = 1; i <= ru; i++) print rline[i]
+        print ""
+        for (i = first; i <= last; i++) print body[i]
+        if (last >= first) print ""
+        for (i = rv; i <= rn; i++) print rline[i]
+    }' "$released" "$file" > "$tmp"
+    if [[ -s "$tmp" ]]; then
+        mv "$tmp" "$file"
+    else
+        rm -f "$tmp"
+    fi
+    trap - EXIT
     ;;
 
 *)

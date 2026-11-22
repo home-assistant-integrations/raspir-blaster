@@ -36,8 +36,10 @@ fail() {
 }
 
 # A changelog with released versions 2026.11.0 and 2026.11.1 and the given
-# [Unreleased] body (from stdin).
+# [Unreleased] body (from stdin), written to WORK/CHANGELOG.md, or to
+# WORK/<name> if a file name is given.
 make_changelog() {
+    local out="$WORK/${1:-CHANGELOG.md}"
     {
         printf '# Changelog\n\nIntro.\n\n## [Unreleased]\n'
         cat
@@ -46,7 +48,7 @@ make_changelog() {
         printf '[unreleased]: %s/compare/2026.11.1...HEAD\n' "$REPO"
         printf '[2026.11.1]: %s/compare/2026.11.0...2026.11.1\n' "$REPO"
         printf '[2026.11.0]: %s/releases/tag/2026.11.0\n' "$REPO"
-    } > "$WORK/CHANGELOG.md"
+    } > "$out"
 }
 
 # expect_release_ok <name> <expected file (stdin)> -- <release args...>
@@ -96,6 +98,23 @@ expect_section() {
         [[ "$out" == "$expected" ]] || fail "$name: expected \"$expected\", got \"$out\""
     else
         [[ "!$out" == "$expected" ]] || fail "$name: expected \"$expected\", got \"$out\""
+    fi
+}
+
+# expect_backport_ok <name> <expected file (stdin)>
+# Runs "backport" of WORK/released.md into WORK/CHANGELOG.md.
+expect_backport_ok() {
+    local name="$1"
+    count=$((count + 1))
+    cat > "$WORK/expected.md"
+    local err
+    if ! err="$("$SCRIPT" -f "$WORK/CHANGELOG.md" backport "$WORK/released.md" 2>&1)"; then
+        fail "$name: unexpected failure: $err"
+        return
+    fi
+    if ! diff -u "$WORK/expected.md" "$WORK/CHANGELOG.md" > "$WORK/diff.txt"; then
+        fail "$name: unexpected result"
+        cat "$WORK/diff.txt"
     fi
 }
 
@@ -240,6 +259,79 @@ sed -i.bak 's/^## \[Unreleased\]/## Unreleased/' "$WORK/CHANGELOG.md" && rm -f "
 expect_release_fails "missing [Unreleased] heading" \
     "no \"## [Unreleased]\" heading in $WORK/CHANGELOG.md" \
     2026.11.2 2026-11-25 2026.11.1
+
+# --- backport ---------------------------------------------------------------
+
+# released.md: what rel-2026.11.2 ended up with (branched before the new
+# entries below existed on main).
+make_changelog released.md <<'EOF'
+
+### Added
+
+- Pre-branch thing.
+EOF
+"$SCRIPT" -f "$WORK/released.md" release 2026.11.2 2026-11-25 2026.11.1 2> /dev/null
+
+# main's current CHANGELOG.md: new entries merged after the branch point.
+make_changelog <<'EOF'
+
+### Added
+
+- Post-branch thing.
+EOF
+expect_backport_ok "backport keeps new entries and inserts the release" <<EOF
+# Changelog
+
+Intro.
+
+## [Unreleased]
+
+### Added
+
+- Post-branch thing.
+
+## [2026.11.2] - 2026-11-25
+
+### Added
+
+- Pre-branch thing.
+
+## [2026.11.1] - 2026-11-10
+
+### Fixed
+
+- Old fix.
+
+## [2026.11.0] - 2026-11-01
+
+### Added
+
+- First.
+
+[unreleased]: $REPO/compare/2026.11.2...HEAD
+[2026.11.2]: $REPO/compare/2026.11.1...2026.11.2
+[2026.11.1]: $REPO/compare/2026.11.0...2026.11.1
+[2026.11.0]: $REPO/releases/tag/2026.11.0
+EOF
+
+make_changelog < /dev/null
+expect_backport_ok "backport with no new entries matches the released file" < "$WORK/released.md"
+
+count=$((count + 1))
+err="$("$SCRIPT" -f "$WORK/CHANGELOG.md" backport "$WORK/released.md" 2>&1)"
+if [[ "$err" != "changelog: $WORK/CHANGELOG.md already has a section for 2026.11.2; nothing to backport" ]]; then
+    fail "backport is idempotent: unexpected message \"$err\""
+fi
+if ! diff -u "$WORK/released.md" "$WORK/CHANGELOG.md" > "$WORK/diff.txt"; then
+    fail "backport is idempotent: file was changed on a second run"
+    cat "$WORK/diff.txt"
+fi
+
+count=$((count + 1))
+err="$("$SCRIPT" -f "$WORK/CHANGELOG.md" backport "$WORK/no-such-file.md" 2>&1)"
+if [[ "$err" != "changelog: $WORK/no-such-file.md not found" ]]; then
+    fail "backport missing released file: unexpected message \"$err\""
+fi
 
 # --- section ---------------------------------------------------------------
 

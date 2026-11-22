@@ -328,16 +328,22 @@ Maintainers start a release under **Actions → Release → Run workflow** on
 4. builds and tests the firmware on that branch,
 5. publishes the GitHub release `<version>` with the files above. The release
    notes show the download table, the version's changelog section and
-   GitHub's generated list of pull requests.
+   GitHub's generated list of pull requests,
+6. pushes `CHANGELOG.md` back to `main` as its own commit
+   (`docs(changelog): bring back <version>`), keeping any entries merged to
+   `main` while the release was building under `[Unreleased]`
+   (`scripts/changelog.sh backport`). It retries a few times if this races
+   with another push to `main`.
 
 The workflow stops before creating the release branch if `[Unreleased]` has no
 entries, or if `CHANGELOG.md` on `main` does not contain the previous release
 yet. If a later step fails, the workflow deletes the release branch again, so
 the version number is used by the next run. Only one release runs at a time.
 
-The workflow never writes to `main`. After each release, bring the released
-changelog back to `main` with a pull request, **before the next release**
-(the next release refuses to start until then):
+Step 6 runs after the release is already published, so its failure (shown as
+a failed workflow run, after 5 retries) never undoes the release. If it does
+fail, bring the changelog back by hand before the next release (which refuses
+to start otherwise):
 
 ```sh
 git fetch origin
@@ -359,9 +365,10 @@ Only copy `CHANGELOG.md`; never merge `rel-<version>` into `main`, because
 that would bring the `VERSION` file along.
 
 Repository settings this needs: GitHub Actions enabled, workflow permissions
-allowing `contents: write`, and no branch protection or ruleset on `rel-*`
-branches. If a cleanup ever fails, delete a stray branch with
-`git push origin --delete rel-<version>`.
+allowing `contents: write`, and no branch protection or ruleset on `main` or
+`rel-*` branches (the workflow pushes `CHANGELOG.md` to `main` directly, with
+no pull request or review). If a cleanup ever fails, delete a stray branch
+with `git push origin --delete rel-<version>`.
 
 ## Continuous integration
 
