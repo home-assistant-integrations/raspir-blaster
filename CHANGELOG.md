@@ -9,6 +9,8 @@ the [README](README.md#releases).
 
 ## [Unreleased]
 
+## [2026.11.3] - 2026-11-22
+
 ### Added
 
 - HTTP API on port 80 (`GET /api/status`, `GET`/`POST /api/config`;
@@ -124,7 +126,8 @@ verified on hardware yet.
 - GitHub Actions: CI builds and tests every pushed commit, and a manual
   release workflow publishes versioned releases.
 
-[unreleased]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.2...HEAD
+[unreleased]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.3...HEAD
+[2026.11.3]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.2...2026.11.3
 [2026.11.2]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.1...2026.11.2
 [2026.11.1]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.0...2026.11.1
 [2026.11.0]: https://github.com/home-assistant-integrations/raspir-blaster/releases/tag/2026.11.0
