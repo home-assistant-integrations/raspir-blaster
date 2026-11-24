@@ -53,6 +53,12 @@ ifeq ($(WATCHDOG_TEST),1)
 DEFINE += -DRASPIR_WATCHDOG_TEST
 endif
 
+# "make DIAG_SDLOG=1" builds a diagnostic image that also appends the log to
+# SD:/raspir-diag.log (flushed every 500 ms, before the fatal loop and on panic).
+ifeq ($(DIAG_SDLOG),1)
+DEFINE += -DRASPIR_DIAG_SDLOG
+endif
+
 # Link order: dependent libraries first, libcircle last.
 LIBS = $(CIRCLEHOME)/addon/wlan/hostap/wpa_supplicant/libwpa_supplicant.a \
        $(CIRCLEHOME)/addon/wlan/libwlan.a \

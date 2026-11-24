@@ -22,6 +22,8 @@
 # and adjust the values. Format: one key=value per line, "#" starts a comment.
 
 # MQTT broker (required): IPv4 address or host name, max 63 characters.
+# Host names are resolved through the router's DNS only: ".local" (mDNS)
+# names such as homeassistant.local do not work, use the IP address.
 mqtt_host=192.168.1.100
 
 # MQTT broker port (optional, 1-65535, default 1883).

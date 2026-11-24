@@ -72,6 +72,11 @@ public:
 	/// Called from the main task: plug-and-play, DTR, sending (bounded).
 	void Process (void);
 
+#ifdef RASPIR_DIAG_SDLOG
+	/// Diagnostic build: moves up to nMax buffered log bytes to pBuffer.
+	size_t TakeDiag (char *pBuffer, size_t nMax);
+#endif
+
 private:
 	static void SerialRemovedHandler (CDevice *pDevice, void *pContext);
 
@@ -83,6 +88,11 @@ private:
 	CLogUSBGadget	*m_pGadget;
 	CDevice		*m_pUSBSerial;	// "utty1" while the host has it configured
 	boolean		m_bReading;	// DTR was set at the last Process()
+
+#ifdef RASPIR_DIAG_SDLOG
+	char		m_Diag[32768];	// log bytes not yet written to the SD card (dropped when full)
+	size_t		m_nDiag;
+#endif
 };
 
 #endif

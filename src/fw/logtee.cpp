@@ -87,6 +87,9 @@ CLogTee::CLogTee (CDevice *pUART)
 	m_pUSBSerial (0),
 	m_bReading (FALSE)
 {
+#ifdef RASPIR_DIAG_SDLOG
+	m_nDiag = 0;
+#endif
 }
 
 int CLogTee::Write (const void *pBuffer, size_t nCount)
@@ -95,6 +98,15 @@ int CLogTee::Write (const void *pBuffer, size_t nCount)
 
 	m_SpinLock.Acquire ();
 	m_Ring.Append (static_cast<const char *> (pBuffer), nCount);
+#ifdef RASPIR_DIAG_SDLOG
+	for (size_t i = 0; i < nCount; i++)
+	{
+		if (m_nDiag < sizeof m_Diag)
+		{
+			m_Diag[m_nDiag++] = static_cast<const char *> (pBuffer)[i];
+		}
+	}
+#endif
 	m_SpinLock.Release ();
 
 	return (int) nCount;
@@ -206,6 +218,26 @@ void CLogTee::Process (void)
 		}
 	}
 }
+
+#ifdef RASPIR_DIAG_SDLOG
+size_t CLogTee::TakeDiag (char *pBuffer, size_t nMax)
+{
+	m_SpinLock.Acquire ();
+	size_t nLength = m_nDiag < nMax ? m_nDiag : nMax;
+	for (size_t i = 0; i < nLength; i++)
+	{
+		pBuffer[i] = m_Diag[i];
+	}
+	for (size_t i = nLength; i < m_nDiag; i++)
+	{
+		m_Diag[i - nLength] = m_Diag[i];
+	}
+	m_nDiag -= nLength;
+	m_SpinLock.Release ();
+
+	return nLength;
+}
+#endif
 
 // Host detached or reconfigured: utty1 is gone. Called from UpdatePlugAndPlay().
 void CLogTee::SerialRemovedHandler (CDevice *pDevice, void *pContext)

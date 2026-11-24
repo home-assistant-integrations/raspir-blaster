@@ -96,6 +96,12 @@ private:
 	static boolean BoardHasUSBDevice (void);
 
 	void FeedWatchdog (void);
+
+#ifdef RASPIR_DIAG_SDLOG
+	void DiagOpen (void);
+	void DiagFlush (boolean bForce);
+	static void DiagPanicHandler (void);
+#endif
 	void ProcessReceivedFrames (void);
 	void ProcessTransmitQueue (void);
 	void LogNetworkState (void);
@@ -153,6 +159,13 @@ private:
 	u64			m_nLEDOffAtMs;	// end of an activity flash
 	u64			m_nLEDToggleAtMs;
 	boolean			m_bLEDOn;
+
+#ifdef RASPIR_DIAG_SDLOG
+	FIL			m_DiagFile;
+	boolean			m_bDiagOpen;
+	u64			m_nDiagFlushAtMs;
+	u64			m_nDiagAliveAtMs;
+#endif
 };
 
 #endif

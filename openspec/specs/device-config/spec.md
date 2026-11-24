@@ -23,7 +23,7 @@ The firmware SHALL support the following keys:
 
 | Key | Required | Default | Constraint |
 | --- | --- | --- | --- |
-| `mqtt_host` | yes | — | IPv4 address or host name, max 63 chars |
+| `mqtt_host` | yes | — | IPv4 address or host name, max 63 chars; host names are resolved with unicast DNS only, so `.local` (mDNS) names do not resolve |
 | `mqtt_port` | no | `1883` | 1–65535 |
 | `mqtt_user` | no | none (anonymous) | max 63 chars |
 | `mqtt_password` | no | none | max 63 chars; only used if `mqtt_user` is set |
