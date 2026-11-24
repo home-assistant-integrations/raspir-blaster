@@ -37,8 +37,13 @@
 #       rel-<version>) has the new version's dated section and an empty
 #       [Unreleased]; FILE (e.g. main's CHANGELOG.md) may have gained new
 #       [Unreleased] entries since the release branch was created. Replaces
-#       FILE with RELEASED_FILE's content, but keeps FILE's current
-#       [Unreleased] entries instead of RELEASED_FILE's empty one. A no-op
+#       FILE with RELEASED_FILE's content, but keeps those of FILE's current
+#       [Unreleased] entries that are not in the released version's section
+#       instead of RELEASED_FILE's empty one: FILE still has the entries the
+#       release moved (only the rel-* branch was edited). An entry is a list
+#       item ("- ", "* " or "+ ") with its indented continuation lines and is
+#       matched by its exact text (trailing blanks ignored), so an entry that
+#       was reworded on main after the branch point stays. A no-op
 #       (exit 0, FILE unchanged) if FILE already has a section for
 #       RELEASED_FILE's newest version.
 #
@@ -82,6 +87,16 @@ function is_entry(s) {
 }
 function is_section_end(s) {
     return s ~ /^## / || s ~ /^\[[^]]+\]: /
+}
+function is_item(s) {
+    return s ~ /^[-*+] /
+}
+function is_continuation(s) {
+    return s ~ /^[ \t]+[^ \t]/
+}
+function rtrim(s) {
+    sub(/[ \t\r]+$/, "", s)
+    return s
 }
 '
 
@@ -218,6 +233,18 @@ backport)
         if (rv > rn) fail("no released version section after \"## [Unreleased]\" in " released)
         version = substr(rline[rv], 5, index(rline[rv], "]") - 5)
 
+        # Entries of the released version: each list item with its
+        # continuation lines, as one key.
+        re_ = rv + 1
+        while (re_ <= rn && !is_section_end(rline[re_])) re_++
+        for (i = rv + 1; i < re_; i++) {
+            if (!is_item(rline[i])) continue
+            key = rtrim(rline[i])
+            for (j = i + 1; j < re_ && is_continuation(rline[j]); j++)
+                key = key "\n" rtrim(rline[j])
+            released_entry[key] = 1
+        }
+
         # Idempotent: already backported.
         for (i = 1; i <= n; i++)
             if (index(line[i], "## [" version "]") == 1) {
@@ -234,8 +261,19 @@ backport)
         e = u + 1
         while (e <= n && !is_section_end(line[e])) e++
 
+        # Drop the entries FILE still has from the release.
+        for (i = u + 1; i < e; i++) {
+            if (!is_item(line[i])) continue
+            key = rtrim(line[i])
+            for (j = i + 1; j < e && is_continuation(line[j]); j++)
+                key = key "\n" rtrim(line[j])
+            if (key in released_entry)
+                for (k = i; k < j; k++) drop[k] = 1
+        }
+
         kept = 0; in_cat = 0; g = 0; g_has = 0
         for (i = u + 1; i < e; i++) {
+            if (i in drop) continue
             s = line[i]
             if (s ~ /^### /) {
                 if (in_cat && g_has) { for (k = 1; k <= g; k++) body[++kept] = grp[k] }
@@ -256,7 +294,13 @@ backport)
 
         for (i = 1; i <= ru; i++) print rline[i]
         print ""
-        for (i = first; i <= last; i++) print body[i]
+        # Dropping entries of a loose list can leave blank lines in a row.
+        prev_blank = 0
+        for (i = first; i <= last; i++) {
+            blank = body[i] ~ /^[ \t]*$/
+            if (!(blank && prev_blank)) print body[i]
+            prev_blank = blank
+        }
         if (last >= first) print ""
         for (i = rv; i <= rn; i++) print rline[i]
     }' "$released" "$file" > "$tmp"

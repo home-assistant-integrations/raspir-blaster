@@ -25,6 +25,10 @@ the [README](README.md#releases).
 - README, the configuration example and the specification now state that
   `mqtt_host` cannot be a `.local` (mDNS) name such as
   `homeassistant.local`; use the broker's IP address.
+- After a release, the release workflow copied all of that release's
+  changelog entries back under `[Unreleased]` on `main` (2026.11.3), so the
+  next release would have listed them again. It now keeps only the entries
+  merged to `main` while the release was building.
 
 ## [2026.11.3] - 2026-11-22
 
