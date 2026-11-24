@@ -333,6 +333,103 @@ if [[ "$err" != "changelog: $WORK/no-such-file.md not found" ]]; then
     fail "backport missing released file: unexpected message \"$err\""
 fi
 
+# The real situation: main's [Unreleased] still has every entry that the
+# release moved into its dated section (the release only edits the rel-*
+# branch), plus whatever was merged to main while the release was building.
+# Only the latter may stay under [Unreleased].
+make_changelog released.md <<'EOF'
+
+### Added
+
+- Pre-branch thing.
+- Pre-branch entry that spans
+  two lines.
+
+### Fixed
+
+- Pre-branch fix.
+EOF
+"$SCRIPT" -f "$WORK/released.md" release 2026.11.2 2026-11-25 2026.11.1 2> /dev/null
+
+make_changelog <<'EOF'
+
+### Added
+
+- Pre-branch thing.
+- Post-branch thing.
+- Pre-branch entry that spans
+  two lines.
+
+### Fixed
+
+- Pre-branch fix.
+
+### Changed
+
+- Post-branch change.
+EOF
+expect_backport_ok "backport drops the entries main still has from the release" <<EOF
+# Changelog
+
+Intro.
+
+## [Unreleased]
+
+### Added
+
+- Post-branch thing.
+
+### Changed
+
+- Post-branch change.
+
+## [2026.11.2] - 2026-11-25
+
+### Added
+
+- Pre-branch thing.
+- Pre-branch entry that spans
+  two lines.
+
+### Fixed
+
+- Pre-branch fix.
+
+## [2026.11.1] - 2026-11-10
+
+### Fixed
+
+- Old fix.
+
+## [2026.11.0] - 2026-11-01
+
+### Added
+
+- First.
+
+[unreleased]: $REPO/compare/2026.11.2...HEAD
+[2026.11.2]: $REPO/compare/2026.11.1...2026.11.2
+[2026.11.1]: $REPO/compare/2026.11.0...2026.11.1
+[2026.11.0]: $REPO/releases/tag/2026.11.0
+EOF
+
+# Nothing merged to main during the release: main's [Unreleased] is exactly
+# what was released, so the result is the released file (42dcd75 instead
+# copied the whole 2026.11.3 section back under [Unreleased]).
+make_changelog <<'EOF'
+
+### Added
+
+- Pre-branch thing.
+- Pre-branch entry that spans
+  two lines.
+
+### Fixed
+
+- Pre-branch fix.
+EOF
+expect_backport_ok "backport of an unchanged main matches the released file" < "$WORK/released.md"
+
 # --- section ---------------------------------------------------------------
 
 make_changelog <<'EOF'
