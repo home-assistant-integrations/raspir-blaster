@@ -175,6 +175,9 @@ On the card:
    mqtt_user=irblaster
    mqtt_password=secret
    ```
+   Use the broker's IP address or a name your router's DNS knows: the
+   firmware cannot resolve `.local` (mDNS) names such as
+   `homeassistant.local`.
 2. For Wi-Fi, rename `wpa_supplicant.conf.example` to `wpa_supplicant.conf`
    and enter your network name and password in `ssid` and `psk` (and your
    country code in `country`). This file is required on the Zero W,
@@ -384,7 +387,7 @@ One `key=value` per line, `#` starts a comment.
 
 | Key               | Required | Default           | Allowed values                              |
 | ----------------- | -------- | ----------------- | ------------------------------------------- |
-| `mqtt_host`       | yes      |                   | IPv4 address or host name, max 63 chars     |
+| `mqtt_host`       | yes      |                   | IPv4 address or host name (not `.local`), max 63 chars |
 | `mqtt_port`       | no       | `1883`            | 1–65535                                     |
 | `mqtt_user`       | no       | anonymous         | max 63 chars                                |
 | `mqtt_password`   | no       |                   | max 63 chars, only used with `mqtt_user`    |

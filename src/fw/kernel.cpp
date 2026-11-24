@@ -42,6 +42,14 @@
 
 static const char FromKernel[] = "kernel";
 
+#ifdef RASPIR_DIAG_SDLOG
+#define DIAG_LOG_FILE		DRIVE "/raspir-diag.log"
+#define DIAG_LOG_MAX		(256u * 1024u)	// start a new file above this size
+#define DIAG_FLUSH_MS		500
+#define DIAG_ALIVE_MS		2000
+static CKernel *s_pDiagKernel = 0;
+#endif
+
 CKernel::CKernel (void)
 :	m_LogTee (&m_Serial),
 	m_Timer (&m_Interrupt),
@@ -70,6 +78,9 @@ CKernel::CKernel (void)
 	m_nLEDToggleAtMs (0),
 	m_bLEDOn (FALSE)
 {
+#ifdef RASPIR_DIAG_SDLOG
+	m_bDiagOpen = FALSE;
+#endif
 	ConfigSetDefaults (&m_Config);
 	m_ActLED.Blink (3);	// show we are alive
 }
@@ -77,6 +88,79 @@ CKernel::CKernel (void)
 CKernel::~CKernel (void)
 {
 }
+
+#ifdef RASPIR_DIAG_SDLOG
+void CKernel::DiagOpen (void)
+{
+	m_bDiagOpen = FALSE;
+	m_nDiagFlushAtMs = 0;
+	m_nDiagAliveAtMs = 0;
+
+	if (f_open (&m_DiagFile, DIAG_LOG_FILE, FA_WRITE | FA_OPEN_APPEND) != FR_OK)
+	{
+		return;
+	}
+	if (f_size (&m_DiagFile) > DIAG_LOG_MAX)
+	{
+		f_close (&m_DiagFile);
+		if (f_open (&m_DiagFile, DIAG_LOG_FILE, FA_WRITE | FA_CREATE_ALWAYS) != FR_OK)
+		{
+			return;
+		}
+	}
+
+	static const char Separator[] = "\r\n===== diag boot =====\r\n";
+	UINT nWritten;
+	f_write (&m_DiagFile, Separator, sizeof Separator - 1, &nWritten);
+	f_sync (&m_DiagFile);
+
+	m_bDiagOpen = TRUE;
+	s_pDiagKernel = this;
+	m_Logger.RegisterPanicHandler (DiagPanicHandler);
+	m_Logger.Write (FromKernel, LogNotice, "diag: logging to %s", DIAG_LOG_FILE);
+}
+
+void CKernel::DiagFlush (boolean bForce)
+{
+	if (!m_bDiagOpen)
+	{
+		return;
+	}
+
+	u64 nNow = NowMs ();
+	if (!bForce && nNow >= m_nDiagAliveAtMs)
+	{
+		m_Logger.Write (FromKernel, LogNotice, "diag: alive, state %u", (unsigned) m_State);
+		m_nDiagAliveAtMs = nNow + DIAG_ALIVE_MS;
+	}
+	if (!bForce && nNow < m_nDiagFlushAtMs)
+	{
+		return;
+	}
+	m_nDiagFlushAtMs = nNow + DIAG_FLUSH_MS;
+
+	char Chunk[1024];
+	size_t nLength;
+	while ((nLength = m_LogTee.TakeDiag (Chunk, sizeof Chunk)) > 0)
+	{
+		UINT nWritten;
+		if (f_write (&m_DiagFile, Chunk, (UINT) nLength, &nWritten) != FR_OK)
+		{
+			break;
+		}
+	}
+	f_sync (&m_DiagFile);
+}
+
+// Called by CLogger after the panic line was written, before halt().
+void CKernel::DiagPanicHandler (void)
+{
+	if (s_pDiagKernel != 0)
+	{
+		s_pDiagKernel->DiagFlush (TRUE);
+	}
+}
+#endif
 
 boolean CKernel::Initialize (void)
 {
@@ -164,6 +248,10 @@ boolean CKernel::InitializeStorage (void)
 	}
 
 	m_Logger.Write (FromKernel, LogNotice, "SD card mounted");
+
+#ifdef RASPIR_DIAG_SDLOG
+	DiagOpen ();
+#endif
 
 	return TRUE;
 }
@@ -557,10 +645,11 @@ void CKernel::LeaveSetupMode (void)
 
 void CKernel::StartMDNS (void)
 {
-	// CmDNSDaemon is a singleton task; calling Get() creates it if not running.
-	// IsRunning() is not checked here: the task has not had a chance to run yet;
-	// the .local name is logged later once the daemon has initialised.
-	CmDNSDaemon::Get ();
+	// CmDNSDaemon::Get() creates the singleton daemon and blocks (MsSleep) until
+	// it has probed its host name on the network (about 1 s). It never returns
+	// while the network is not up, so call this only once it is (normal mode:
+	// from LogNetworkState(); setup mode: the access point has a static IP).
+	CmDNSDaemon *pDaemon = CmDNSDaemon::Get ();
 
 	// Service name: "raspir-blaster (<device_id>)"
 	char ServiceName[64];
@@ -595,8 +684,9 @@ void CKernel::StartMDNS (void)
 		return;
 	}
 
+	// The daemon may have added a "-2", "-3", ... suffix on a name conflict.
 	m_Logger.Write (FromKernel, LogNotice, "mDNS: %s.local (_http._tcp :80)",
-			m_Config.DeviceID);
+			pDaemon->GetHostname ().c_str ());
 }
 
 void CKernel::StartApiServer (void)
@@ -625,6 +715,11 @@ void CKernel::StartApiServer (void)
 
 void CKernel::Run (void)
 {
+#ifdef RASPIR_DIAG_SDLOG
+	m_Logger.Write (FromKernel, LogNotice, "diag: Run, state %u", (unsigned) m_State);
+	DiagFlush (TRUE);
+#endif
+
 	if (m_State == StateFatal)
 	{
 		// Let the watchdog reboot the device: a transient driver failure
@@ -632,8 +727,14 @@ void CKernel::Run (void)
 		m_Logger.Write (FromKernel, LogError, "Fatal error, rebooting in %u s",
 				WATCHDOG_TIMEOUT_S);
 		m_Watchdog.Start (WATCHDOG_TIMEOUT_S);
+#ifdef RASPIR_DIAG_SDLOG
+		DiagFlush (TRUE);
+#endif
 		for (;;)
 		{
+#ifdef RASPIR_DIAG_SDLOG
+			DiagFlush (FALSE);
+#endif
 			m_LogTee.Process ();
 			UpdateLED ();
 			m_Scheduler.MsSleep (10);
@@ -653,9 +754,21 @@ void CKernel::Run (void)
 		RunSetupLoop ();	// falls through to RunDegradedLoop() on timeout
 	}
 
-	StartMDNS ();
+	// mDNS is started by LogNetworkState() once the network is up.
+#ifdef RASPIR_DIAG_SDLOG
+	m_Logger.Write (FromKernel, LogNotice, "diag: MQTT client");
+	DiagFlush (TRUE);
+#endif
 	m_pMQTT = new CIRMqttClient (m_pNet, &m_Config, &m_TxQueue, m_Model);
+#ifdef RASPIR_DIAG_SDLOG
+	m_Logger.Write (FromKernel, LogNotice, "diag: API server");
+	DiagFlush (TRUE);
+#endif
 	StartApiServer ();
+#ifdef RASPIR_DIAG_SDLOG
+	m_Logger.Write (FromKernel, LogNotice, "diag: main loop");
+	DiagFlush (TRUE);
+#endif
 
 	for (;;)
 	{
@@ -693,6 +806,9 @@ void CKernel::FeedWatchdog (void)
 {
 	// Restarting the watchdog reloads its counter.
 	m_Watchdog.Start (WATCHDOG_TIMEOUT_S);
+#ifdef RASPIR_DIAG_SDLOG
+	DiagFlush (FALSE);
+#endif
 }
 
 void CKernel::RunDegradedLoop (void)
@@ -805,6 +921,11 @@ void CKernel::LogNetworkState (void)
 		m_pNet->GetConfig ()->GetIPAddress ()->Format (&IPString);
 		m_Logger.Write (FromKernel, LogNotice, "Network up, IP address %s",
 				(const char *) IPString);
+
+		if (m_pMDNSPublisher == 0)
+		{
+			StartMDNS ();	// blocks about 1 s, once (see StartMDNS())
+		}
 	}
 	else
 	{
