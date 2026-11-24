@@ -9,6 +9,8 @@ the [README](README.md#releases).
 
 ## [Unreleased]
 
+## [2026.11.4] - 2026-11-24
+
 ### Added
 
 - `make DIAG_SDLOG=1` builds diagnostic images that also append the log to
@@ -147,7 +149,8 @@ verified on hardware yet.
 - GitHub Actions: CI builds and tests every pushed commit, and a manual
   release workflow publishes versioned releases.
 
-[unreleased]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.3...HEAD
+[unreleased]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.4...HEAD
+[2026.11.4]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.3...2026.11.4
 [2026.11.3]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.2...2026.11.3
 [2026.11.2]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.1...2026.11.2
 [2026.11.1]: https://github.com/home-assistant-integrations/raspir-blaster/compare/2026.11.0...2026.11.1
