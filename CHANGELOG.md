@@ -9,6 +9,13 @@ the [README](README.md#releases).
 
 ## [Unreleased]
 
+### Added
+
+- Home Assistant now also gets an "IR Event" event entity, which fires once
+  per received IR frame, also when the same frame arrives twice in a row
+  (the "IR Receiver" sensor ignores such repeats). Use it to trigger
+  automations; the sensor stays unchanged.
+
 ## [2026.11.4] - 2026-11-24
 
 ### Added

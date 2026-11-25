@@ -419,6 +419,7 @@ show up as separate frames.
 | `<topic_base>/received`                             | device → HA | IR frame captured by the receiver           |
 | `<topic_base>/status`                               | device → HA | `online` / `offline` (retained)             |
 | `homeassistant/sensor/<device_id>/received/config` | device → HA | MQTT Discovery config (retained)            |
+| `homeassistant/event/<device_id>/received/config`  | device → HA | MQTT Discovery config (retained)            |
 
 An IR frame is a JSON object:
 
@@ -438,9 +439,45 @@ because the receiver cannot measure the carrier.
 ## Home Assistant
 
 The device appears automatically under **Settings → Devices & services →
-MQTT** as "raspir-blaster (`<device_id>`)", with an "IR Receiver" sensor. The
-sensor's state is the number of timings of the last received frame; its
-attributes hold `freq` and `raw`.
+MQTT** as "raspir-blaster (`<device_id>`)", with two entities for received
+frames:
+
+- **IR Receiver** (sensor): its state is the number of timings of the last
+  received frame; its attributes hold `freq` and `raw`. Use it to look at the
+  last frame, e.g. while learning a button.
+- **IR Event** (event, Home Assistant 2023.8 or later): fires one `received`
+  event per frame, with `freq` and `raw` as attributes. Use it to trigger
+  automations. Unlike the sensor, it also fires when the same frame arrives
+  twice in a row (Home Assistant drops sensor updates that change nothing).
+
+The device cannot tell buttons apart (it does not decode protocols), so an
+automation matches the timings itself. Timings vary by ±50–100 µs between
+presses, so compare with a tolerance, for example the number of timings and
+the first values:
+
+```yaml
+automation:
+  - alias: "IR: remote button A"
+    triggers:
+      - trigger: state
+        entity_id: event.raspir_blaster_living_ir_ir_event
+        not_from: ["unavailable", "unknown"]   # skip reconnects
+    conditions:
+      - condition: template
+        value_template: >
+          {% set raw = trigger.to_state.attributes.raw %}
+          {{ raw | length == 67
+             and (raw[0] - 9000) | abs < 500
+             and (raw[1] - 4500) | abs < 300 }}
+    actions:
+      - action: light.toggle
+        target:
+          entity_id: light.living_room
+```
+
+Firmware before the event entity existed does not remove its retained
+discovery config. After going back to such a firmware, delete it once with
+`mosquitto_pub -r -n -t homeassistant/event/<device_id>/received/config`.
 
 ### Learning a remote button
 

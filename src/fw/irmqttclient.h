@@ -83,6 +83,7 @@ private:
 	char              m_TopicReceived[TOPIC_MAX];
 	char              m_TopicStatus[TOPIC_MAX];
 	char              m_TopicDiscovery[TOPIC_MAX];
+	char              m_TopicDiscoveryEvent[TOPIC_MAX];
 
 	TIRFrame          m_MessageFrame;			// parse buffer for OnMessage()
 	char              m_PublishBuffer[IR_MAX_PAYLOAD];
