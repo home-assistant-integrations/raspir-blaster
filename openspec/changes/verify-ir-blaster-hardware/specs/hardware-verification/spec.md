@@ -130,3 +130,22 @@ On the boards with USB device mode, the log SHALL be readable over a single USB 
 #### Scenario: Pi 3 B without USB device
 - **WHEN** a Pi 3 B or B+ is running
 - **THEN** no USB serial device appears on a connected computer, the UART log shows no "Cannot start USB serial log" warning, and Ethernet works as in "Ethernet selection and operation"
+
+### Requirement: Home Assistant event entity
+On a Zero W running the normal image, the "IR Event" entity (see `ha-discovery`, "Discovery of the receive event") SHALL appear in Home Assistant and SHALL fire once per received frame, including identical repeats, and SHALL report its availability like the sensor.
+
+#### Scenario: Event discovery
+- **WHEN** the device connects to the broker used by Home Assistant
+- **THEN** the retained config `homeassistant/event/<device_id>/received/config` is on the broker, and Home Assistant shows the entity "IR Event" on the same device as the sensor "IR Receiver"
+
+#### Scenario: One event per frame
+- **WHEN** a remote button is pressed once at the receiver
+- **THEN** the event entity fires one `received` event whose attributes hold the frame's `freq` and `raw`
+
+#### Scenario: Identical repeats
+- **WHEN** the same payload is published twice to `<topic_base>/received`
+- **THEN** the logbook shows two events of the event entity, while the sensor's state does not change
+
+#### Scenario: Event entity availability
+- **WHEN** the device loses power while connected, and is powered up again later
+- **THEN** Home Assistant shows the event entity as unavailable within 90 s, and as available again after the device reconnects

@@ -73,8 +73,17 @@ Added by `add-web-update`. Boot without `raspir-blaster.conf` (or with `wpa_supp
 - [ ] 10.10 After a successful update (10.5), rename `<image>.bak` back to `<image>` on the card in a computer and confirm the device boots the previous version again
 - [ ] 10.11 `dns-sd -B _http._tcp local` (or `avahi-browse`) shows `raspir-blaster (<device_id>)`; `ping <hostname>.local` resolves, in both normal and setup mode
 
-## 11. Wrap-up
+## 11. Home Assistant event entity (needs a Zero W and an IR remote)
 
-- [ ] 11.1 Complete the report entry (all tests with pass/fail/not run, measured values, environment notes) and reference a follow-up change for every failure
+Moved from `add-ir-event-entity` (its group 3). Use the normal image, not `DIAG_SDLOG`.
+
+- [ ] 11.1 Boot, and check with `mosquitto_sub -v -t 'homeassistant/event/#'` that the retained config `homeassistant/event/<device_id>/received/config` arrives once per connection
+- [ ] 11.2 In Home Assistant, check that the "IR Event" entity appears on the existing device next to "IR Receiver" and fires for a button press, with `freq` and `raw` attributes
+- [ ] 11.3 Press the same button twice (or publish the same payload twice to `<topic_base>/received` with `mosquitto_pub`): two events in the logbook, while the sensor's state does not change
+- [ ] 11.4 Cut power while connected: the event entity becomes unavailable within 90 s, and available again after power-up
+
+## 12. Wrap-up
+
+- [ ] 12.1 Complete the report entry (all tests with pass/fail/not run, measured values, environment notes) and reference a follow-up change for every failure
 
 > **Board coverage.** These tasks were written for the Raspberry Pi Zero W (`rpi0w` target, `kernel.img`). Since `add-multi-board-builds`, the firmware also builds for the Zero 2 W and Pi 3 (`rpi3`), Pi 4 B and CM4 Lite (`rpi4`) and CM4 with eMMC (`rpi4-emmc`). None of these boards has a verification run yet. Record the board in every report entry. For each further board, repeat groups 2–7, and group 8 on the boards with Ethernet (for CM4 with eMMC, prepare `build/cm4-emmc/` instead of the SD card in 1.2), and check the boot log's "Board: …" line and the Home Assistant device model.

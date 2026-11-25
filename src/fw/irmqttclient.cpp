@@ -55,6 +55,8 @@ CIRMqttClient::CIRMqttClient (CNetSubSystem *pNetSubSystem, const TConfig *pConf
 			m_TopicReceived, sizeof m_TopicReceived);
 	MQTTTopicBuild (pConfig->TopicBase, TOPIC_SUFFIX_STATUS, m_TopicStatus, sizeof m_TopicStatus);
 	DiscoveryBuildTopic (pConfig->DeviceID, m_TopicDiscovery, sizeof m_TopicDiscovery);
+	DiscoveryBuildEventTopic (pConfig->DeviceID, m_TopicDiscoveryEvent,
+				  sizeof m_TopicDiscoveryEvent);
 }
 
 CIRMqttClient::~CIRMqttClient (void)
@@ -152,6 +154,17 @@ void CIRMqttClient::OnConnect (boolean bSessionPresent)
 	else
 	{
 		CLogger::Get ()->Write (FromMQTT, LogError, "Discovery payload too large");
+	}
+
+	// Publish() copies the payload into its own packet, so the buffer can be reused.
+	if (DiscoveryBuildEventPayload (m_pConfig->DeviceID, m_pConfig->TopicBase, m_pModel,
+					RASPIR_FIRMWARE_VERSION, Payload, sizeof Payload) > 0)
+	{
+		PublishText (m_TopicDiscoveryEvent, Payload, TRUE);
+	}
+	else
+	{
+		CLogger::Get ()->Write (FromMQTT, LogError, "Event discovery payload too large");
 	}
 }
 

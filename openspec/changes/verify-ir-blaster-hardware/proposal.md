@@ -15,6 +15,7 @@ The change `add-ir-blaster-firmware` is implemented and covered by host unit tes
   - end-to-end replay
 - Ethernet tests (interface selection by cable detection, marker reboot on Pi 4/CM4, operation and reconnect over Ethernet), moved from `add-ethernet-support` so that all hardware tests live in one change.
 - Log-over-USB tests (boot log replay, reopen, no terminal, USB identity, Pi 3 B without USB device), added by `add-usb-serial-log`.
+- Home Assistant event entity tests (discovery, one event per frame, identical repeats, availability), moved from `add-ir-event-entity`.
 - No firmware behavior changes. Failures found by the tests are fixed in follow-up changes.
 
 ## Capabilities

@@ -49,4 +49,16 @@ size_t DiscoveryBuildPayload (const char *pDeviceID, const char *pTopicBase,
 			      const char *pModel, const char *pVersion,
 			      char *pBuffer, size_t nSize);
 
+/// Builds "homeassistant/event/<device_id>/received/config".
+/// \return length, or 0 if the buffer is too small
+size_t DiscoveryBuildEventTopic (const char *pDeviceID, char *pBuffer, size_t nSize);
+
+/// Builds the Home Assistant MQTT Discovery config for the receive event entity,
+/// which fires once per frame on <topic_base>/received (see specs/ha-discovery).
+/// \param pModel Device model, e.g. "Raspberry Pi 4 Model B (Circle bare-metal)"
+/// \return length, or 0 if the buffer is too small
+size_t DiscoveryBuildEventPayload (const char *pDeviceID, const char *pTopicBase,
+				   const char *pModel, const char *pVersion,
+				   char *pBuffer, size_t nSize);
+
 #endif

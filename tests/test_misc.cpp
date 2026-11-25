@@ -199,6 +199,40 @@ TEST (DiscoveryDiffersPerDevice)
 	CHECK (std::strstr (Bedroom, "\"identifiers\":[\"bedroom_ir\"]") != nullptr);
 }
 
+// --- add-ir-event-entity: event discovery ------------------------------------------
+
+TEST (DiscoveryEventTopicIsBuiltFromDeviceID)
+{
+	char Buffer[TOPIC_MAX];
+	CHECK (DiscoveryBuildEventTopic ("living_ir", Buffer, sizeof Buffer) > 0);
+	CHECK_STR (Buffer, "homeassistant/event/living_ir/received/config");
+}
+
+TEST (DiscoveryEventPayloadContainsSpecifiedFields)
+{
+	char Buffer[DISCOVERY_PAYLOAD_MAX];
+	size_t nLength = DiscoveryBuildEventPayload ("pi_zero_ir", "home/ir_blaster",
+						     "Raspberry Pi Zero W (Circle bare-metal)", "0.1.0",
+						     Buffer, sizeof Buffer);
+
+	CHECK (nLength > 0);
+	CHECK_STR (Buffer,
+		"{\"name\":\"IR Event\","
+		"\"unique_id\":\"pi_zero_ir_ir_event\","
+		"\"state_topic\":\"home/ir_blaster/received\","
+		"\"event_types\":[\"received\"],"
+		"\"value_template\":\"{\\\"event_type\\\":\\\"received\\\","
+		"\\\"freq\\\":{{ value_json.freq }},"
+		"\\\"raw\\\":{{ value_json.raw | tojson }}}\","
+		"\"device_class\":\"button\","
+		"\"availability_topic\":\"home/ir_blaster/status\","
+		"\"icon\":\"mdi:remote\","
+		"\"device\":{\"identifiers\":[\"pi_zero_ir\"],"
+		"\"name\":\"raspir-blaster (pi_zero_ir)\","
+		"\"model\":\"Raspberry Pi Zero W (Circle bare-metal)\","
+		"\"manufacturer\":\"DIY\",\"sw_version\":\"0.1.0\"}}");
+}
+
 TEST (DiscoveryWorstCaseFitsBuffer)
 {
 	char Buffer[DISCOVERY_PAYLOAD_MAX];
@@ -207,4 +241,105 @@ TEST (DiscoveryWorstCaseFitsBuffer)
 				      "ttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
 				      "Raspberry Pi 3 Model B+ (Circle bare-metal)",
 				      "999.999.999", Buffer, sizeof Buffer) > 0);
+}
+
+namespace
+{
+	/// Walks all tokens; true if the text is one well-formed JSON value.
+	bool IsWellFormedJSON (const char *pText, size_t nLength)
+	{
+		CJSONTokenizer Tokenizer (pText, nLength);
+		TJSONToken Token;
+		TJSONTokenType Type;
+		int nDepth = 0;
+		do
+		{
+			Type = Tokenizer.Next (&Token);
+			if (Type == JSONTokenObjectBegin || Type == JSONTokenArrayBegin) nDepth++;
+			if (Type == JSONTokenObjectEnd || Type == JSONTokenArrayEnd) nDepth--;
+		}
+		while (Type != JSONTokenEnd && Type != JSONTokenError);
+
+		return Type == JSONTokenEnd && nDepth == 0;
+	}
+}
+
+TEST (DiscoveryEventPayloadIsValidJSONWithEscapedTopicBase)
+{
+	char Buffer[DISCOVERY_PAYLOAD_MAX];
+	size_t nLength = DiscoveryBuildEventPayload ("bedroom_ir", "a\"b\\c",
+						     "Compute Module 4 (Circle bare-metal)", "1.2.3",
+						     Buffer, sizeof Buffer);
+	CHECK (nLength > 0);
+	CHECK (std::strstr (Buffer, "\"state_topic\":\"a\\\"b\\\\c/received\"") != nullptr);
+	CHECK (std::strstr (Buffer, "\"availability_topic\":\"a\\\"b\\\\c/status\"") != nullptr);
+	// The template's own quotes are escaped inside the JSON string.
+	CHECK (std::strstr (Buffer, "\"value_template\":\"{\\\"event_type\\\":") != nullptr);
+	CHECK (IsWellFormedJSON (Buffer, nLength));
+}
+
+TEST (DiscoveryEventPayloadFitsWorstCase)
+{
+	// Longest device_id, a topic_base of 63 characters that all need escaping,
+	// and a model and version longer than any real one.
+	char DeviceID[] = "abcdefghijklmnopqrstuvwxyz_0123";	// 31 characters
+	char TopicBase[64];
+	for (unsigned i = 0; i < 63; i++)
+	{
+		TopicBase[i] = i % 2 == 0 ? '"' : '\\';
+	}
+	TopicBase[63] = '\0';
+	const char *pModel = "Raspberry Pi Compute Module 4 Rev 1.1 (Circle bare-metal)";
+	const char *pVersion = "2026.12.10-dirty";
+
+	char Buffer[DISCOVERY_PAYLOAD_MAX];
+	size_t nLength = DiscoveryBuildEventPayload (DeviceID, TopicBase, pModel, pVersion,
+						     Buffer, sizeof Buffer);
+	CHECK (nLength > 0);
+	CHECK (nLength < DISCOVERY_PAYLOAD_MAX);
+	CHECK (IsWellFormedJSON (Buffer, nLength));
+
+	// The sensor payload must fit the same worst case.
+	nLength = DiscoveryBuildPayload (DeviceID, TopicBase, pModel, pVersion, Buffer, sizeof Buffer);
+	CHECK (nLength > 0);
+	CHECK (IsWellFormedJSON (Buffer, nLength));
+}
+
+TEST (DiscoveryEventPayloadReportsOverflow)
+{
+	char Buffer[64];
+	CHECK_EQ (DiscoveryBuildEventPayload ("pi_zero_ir", "home/ir_blaster", "M", "0.1.0",
+					      Buffer, sizeof Buffer), 0u);
+	CHECK_STR (Buffer, "");
+}
+
+TEST (DiscoveryDeviceObjectIsIdenticalInBothPayloads)
+{
+	char Sensor[DISCOVERY_PAYLOAD_MAX];
+	char Event[DISCOVERY_PAYLOAD_MAX];
+	CHECK (DiscoveryBuildPayload ("living_ir", "home/living", "Raspberry Pi 4 Model B (Circle bare-metal)",
+				      "2026.11.3", Sensor, sizeof Sensor) > 0);
+	CHECK (DiscoveryBuildEventPayload ("living_ir", "home/living", "Raspberry Pi 4 Model B (Circle bare-metal)",
+					   "2026.11.3", Event, sizeof Event) > 0);
+
+	// Everything from "availability_topic" on (availability, icon, device) is shared.
+	const char *pSensorTail = std::strstr (Sensor, "\"availability_topic\"");
+	const char *pEventTail = std::strstr (Event, "\"availability_topic\"");
+	CHECK (pSensorTail != nullptr);
+	CHECK (pEventTail != nullptr);
+	CHECK (std::strstr (pSensorTail, "\"device\":{") != nullptr);
+	CHECK_STR (pEventTail, pSensorTail);
+}
+
+TEST (DiscoveryEventDiffersPerDevice)
+{
+	char Living[DISCOVERY_PAYLOAD_MAX];
+	char Bedroom[DISCOVERY_PAYLOAD_MAX];
+	DiscoveryBuildEventPayload ("living_ir", "home/living", "M", "0.1.0", Living, sizeof Living);
+	DiscoveryBuildEventPayload ("bedroom_ir", "home/bedroom", "M", "0.1.0", Bedroom, sizeof Bedroom);
+
+	CHECK (std::strstr (Living, "\"unique_id\":\"living_ir_ir_event\"") != nullptr);
+	CHECK (std::strstr (Living, "\"state_topic\":\"home/living/received\"") != nullptr);
+	CHECK (std::strstr (Bedroom, "\"unique_id\":\"bedroom_ir_ir_event\"") != nullptr);
+	CHECK (std::strstr (Bedroom, "\"state_topic\":\"home/bedroom/received\"") != nullptr);
 }
