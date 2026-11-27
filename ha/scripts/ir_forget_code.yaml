@@ -1,0 +1,71 @@
+# ir_forget_code.yaml
+# raspir-blaster Home Assistant script
+#
+# Created by Thomas Bonk on 2026-11-27.
+# Copyright 2026 Thomas Bonk <thomas@meandmymac.de>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# "Forget IR code": deletes a button learned with "Learn IR code".
+# Design: docs/dev/train-ir-remote.md. User guide: docs/train-ir-remote.md.
+#
+# Install: Settings -> Automations & scenes -> Scripts -> Create script ->
+# Create new script -> (top right) Edit in YAML, paste this file and save with
+# the entity ID script.ir_forget_code. Nothing to replace.
+
+alias: Forget IR code
+description: >-
+  Deletes a button that was learned with "Learn IR code". Enter the same
+  remote and button as when you learned it.
+icon: mdi:remote-off
+mode: queued
+fields:
+  remote:
+    name: Remote
+    description: Remote ID, e.g. pro_ject
+    required: true
+    example: pro_ject
+    selector:
+      text: {}
+  button:
+    name: Button
+    description: Button ID, e.g. vol_down
+    required: true
+    example: vol_down
+    selector:
+      text: {}
+sequence:
+  - note: Same ID rules as Learn IR code, so no topic outside ir_* can be cleared.
+    if:
+      - condition: template
+        value_template: >-
+          {{ not (remote is match('^[a-z0-9_]{1,32}$'))
+             or not (button is match('^[a-z0-9_]{1,32}$')) }}
+    then:
+      - stop: Invalid remote or button ID
+        error: true
+  - note: >-
+      An empty retained payload deletes the button; Home Assistant removes the
+      remote device once its last button is gone.
+    action: mqtt.publish
+    data:
+      topic: homeassistant/button/ir_{{ remote }}_{{ button }}/config
+      payload: ""
+      qos: 1
+      retain: true
+  - action: notify.persistent_notification
+    data:
+      title: Forget IR code
+      message: Deleted button "{{ button }}" of remote "{{ remote }}" (if it existed).
+      data:
+        notification_id: ir_learn

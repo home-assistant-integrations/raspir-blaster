@@ -1,0 +1,223 @@
+# ir_learn_code.yaml
+# raspir-blaster Home Assistant script
+#
+# Created by Thomas Bonk on 2026-11-27.
+# Copyright 2026 Thomas Bonk <thomas@meandmymac.de>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# "Learn IR code": learns one remote button through raspir-blaster and creates
+# an MQTT button for it. Design: docs/dev/train-ir-remote.md. User guide:
+# docs/train-ir-remote.md.
+#
+# Install: Settings -> Automations & scenes -> Scripts -> Create script ->
+# Create new script -> (top right) Edit in YAML, paste this file, then replace
+#   - raspir-blaster-wz            with your device_id      (1 place)
+#   - home/ir_blaster              with your topic_base     (1 place)
+#   - event.YOUR_IR_EVENT_ENTITY   with your IR Event entity ID (3 places)
+# and save with the entity ID script.ir_learn_code.
+
+alias: Learn IR code
+description: >-
+  Teaches Home Assistant one button of your remote control. Fill in the
+  fields, click Run, then press and hold the button on the remote for about a
+  second, within 20 seconds.
+icon: mdi:remote
+mode: single
+max_exceeded: silent
+fields:
+  remote:
+    name: Remote
+    description: >-
+      Short name of the remote: only a-z, 0-9 and _, e.g. pro_ject. Use the
+      same name for all buttons of one remote.
+    required: true
+    example: pro_ject
+    selector:
+      text: {}
+  remote_name:
+    name: Remote name
+    description: Shown as the device name, e.g. "Pro-Ject remote" (default = the remote ID)
+    selector:
+      text: {}
+  button:
+    name: Button
+    description: >-
+      Short name of the button only, e.g. vol_down (not the full entity ID).
+      The button entity becomes button.ir_<remote>_<button>.
+    required: true
+    example: vol_down
+    selector:
+      text: {}
+  button_name:
+    name: Button name
+    description: Shown as the entity name, e.g. "Vol-" (default = the button ID)
+    selector:
+      text: {}
+  freq:
+    name: Carrier
+    required: true
+    default: "38000"
+    selector:
+      select:
+        options:
+          - label: 36 kHz (Philips RC5/RC6)
+            value: "36000"
+          - label: 38 kHz (NEC and most others)
+            value: "38000"
+          - label: 40 kHz (Sony)
+            value: "40000"
+variables:
+  blaster_device_id: raspir-blaster-wz              # your device_id
+  topic_base: home/ir_blaster                       # your topic_base
+  ir_event: event.YOUR_IR_EVENT_ENTITY              # your IR Event entity (1 of 3)
+  min_timings: 10
+  timeout_s: 20
+  object_id: ir_{{ remote }}_{{ button }}
+sequence:
+  - note: Reject IDs that are not valid in MQTT topics and entity IDs.
+    if:
+      - condition: template
+        value_template: >-
+          {{ not (remote is match('^[a-z0-9_]{1,32}$'))
+             or not (button is match('^[a-z0-9_]{1,32}$')) }}
+    then:
+      - action: notify.persistent_notification
+        data:
+          title: Learn IR code
+          message: >-
+            {% if "." in button or "." in remote %}Enter only short names,
+            without "button." or the remote name in the Button field: e.g.
+            Remote = pro_ject, Button = vol_down. The entity ID
+            button.ir_pro_ject_vol_down is created automatically.{% else %}Invalid
+            name "{{ remote }}" / "{{ button }}": use 1-32 characters a-z, 0-9
+            and _ (no spaces, capitals or -).{% endif %}
+          data:
+            notification_id: ir_learn
+      - stop: Invalid remote or button ID
+        error: true
+  - note: The blaster must be online, or no frame can arrive.
+    if:
+      - condition: state
+        entity_id: event.YOUR_IR_EVENT_ENTITY       # your IR Event entity (2 of 3)
+        state: unavailable
+    then:
+      - action: notify.persistent_notification
+        data:
+          title: Learn IR code
+          message: raspir-blaster is offline. Power it on and try again.
+          data:
+            notification_id: ir_learn
+      - stop: Blaster offline
+        error: true
+  - variables:
+      deadline: "{{ (now() + timedelta(seconds=timeout_s)).isoformat() }}"
+  - action: notify.persistent_notification
+    data:
+      title: Learn IR code
+      message: >-
+        Press and hold **{{ button_name or button }}** on
+        **{{ remote_name or remote }}** for about a second, about 1 m from the
+        receiver (within {{ timeout_s }} s).
+      data:
+        notification_id: ir_learn
+  - note: >-
+      Wait for frames until one is long enough or the time is up. Fragments
+      (fewer than min_timings timings) are skipped.
+    repeat:
+      sequence:
+        - wait_for_trigger:
+            - trigger: event.received
+              target:
+                entity_id: event.YOUR_IR_EVENT_ENTITY   # your IR Event entity (3 of 3)
+              options:
+                event_type:
+                  - received
+          timeout: "{{ [0, (as_datetime(deadline) - now()).total_seconds()] | max | int }}"
+      until:
+        - condition: template
+          value_template: >-
+            {{ not wait.completed
+               or (state_attr(ir_event, 'raw') | count) >= min_timings }}
+  - if:
+      - condition: template
+        value_template: "{{ not wait.completed }}"
+    then:
+      - action: notify.persistent_notification
+        data:
+          title: Learn IR code
+          message: >-
+            No IR code received within {{ timeout_s }} s. Nothing was changed.
+            Try again and hold the button for about a second.
+          data:
+            notification_id: ir_learn
+      - stop: Timeout
+  - variables:
+      raw: "{{ state_attr(ir_event, 'raw') }}"
+      config:
+        name: "{{ button_name or button }}"
+        unique_id: "{{ object_id }}"
+        default_entity_id: button.{{ object_id }}
+        command_topic: "{{ topic_base }}/send"
+        qos: 1
+        retain: false
+        icon: mdi:remote
+        availability_topic: "{{ topic_base }}/status"
+        device:
+          identifiers:
+            - ir_remote_{{ remote }}
+          name: "{{ remote_name or remote }}"
+          model: Learned IR remote
+          manufacturer: raspir-blaster
+          via_device: "{{ blaster_device_id }}"
+        origin:
+          name: raspir-blaster Learn IR code script
+  - note: >-
+      payload_press is added here, in the same template that serializes the
+      config: built in variables, Home Assistant would turn the JSON text into
+      an object, and MQTT discovery rejects it.
+    action: mqtt.publish
+    data:
+      topic: homeassistant/button/{{ object_id }}/config
+      payload: >-
+        {{ dict(config, payload_press=({'freq': freq | int, 'raw': raw} | tojson)) | tojson }}
+      qos: 1
+      retain: true
+  - note: Only report success once Home Assistant has really created the button.
+    wait_template: "{{ ('button.' ~ object_id) in (states.button | map(attribute='entity_id') | list) }}"
+    timeout: 10
+    continue_on_timeout: true
+  - if:
+      - condition: template
+        value_template: "{{ not wait.completed }}"
+    then:
+      - action: notify.persistent_notification
+        data:
+          title: Learn IR code
+          message: >-
+            The code was received, but Home Assistant did not create the button
+            {{ "button." ~ object_id }}. Check Settings → System → Logs for MQTT
+            errors.
+          data:
+            notification_id: ir_learn
+      - stop: Button not created
+        error: true
+  - action: notify.persistent_notification
+    data:
+      title: Learn IR code
+      message: >-
+        Learned **{{ button_name or button }}** ({{ raw | count }} timings,
+        {{ (freq | int / 1000) | round(0) | int }} kHz) as
+        `button.{{ object_id }}`. Press it to test.
+      data:
+        notification_id: ir_learn

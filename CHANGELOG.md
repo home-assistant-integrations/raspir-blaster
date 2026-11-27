@@ -11,6 +11,10 @@ the [README](README.md#releases).
 
 ### Added
 
+- Two Home Assistant scripts in `ha/scripts/`, "Learn IR code" and "Forget IR
+  code": press a button on your remote, give it a name, and Home Assistant
+  creates a button that sends this code. A step-by-step guide with
+  screenshots is in `docs/train-ir-remote.md`.
 - The case now has a bottom lid (`case/Bottom Lid.stl`), and the README
   links all STL files of the case.
 
