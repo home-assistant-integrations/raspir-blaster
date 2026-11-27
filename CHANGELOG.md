@@ -9,6 +9,17 @@ the [README](README.md#releases).
 
 ## [Unreleased]
 
+### Security
+
+- `GET /api/config` no longer takes the password in the URL, where it could
+  end up in logs and browser history. It now works in setup mode only; in
+  normal mode, read the configuration with a `POST /api/config` that
+  contains only the `password` field.
+- Fixed an out-of-bounds read in the setup-mode DHCP server that any device
+  on the open setup access point could trigger with a malformed request.
+- A firmware update can no longer be confirmed or cancelled while it is
+  being installed (this could free the image during the install).
+
 ## [2026.11.5] - 2026-11-25
 
 ### Added
