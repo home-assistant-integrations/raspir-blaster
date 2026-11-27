@@ -9,6 +9,11 @@ the [README](README.md#releases).
 
 ## [Unreleased]
 
+### Added
+
+- The case now has a bottom lid (`case/Bottom Lid.stl`), and the README
+  links all STL files of the case.
+
 ## [2026.11.5] - 2026-11-25
 
 ### Added
