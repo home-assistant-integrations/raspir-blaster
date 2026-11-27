@@ -481,6 +481,15 @@ discovery config. After going back to such a firmware, delete it once with
 
 ### Learning a remote button
 
+The easy way: install the two Home Assistant scripts in [ha/scripts/](ha/scripts/)
+(`ir_learn_code.yaml`, `ir_forget_code.yaml`; installation steps are at the top
+of each file). They ask for a name, wait for the button press and create a
+Home Assistant button per learned code. The step-by-step guide for users is
+[docs/train-ir-remote.md](docs/train-ir-remote.md), the design is in
+[docs/dev/train-ir-remote.md](docs/dev/train-ir-remote.md).
+
+The manual way:
+
 1. Point the remote at the receiver and press the button.
 2. In Home Assistant, open **Developer Tools → States** and select the
    "IR Receiver" sensor.
